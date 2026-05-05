@@ -1,0 +1,46 @@
+{
+  "app-id": "io.github.blacksamdev.Radioo",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "49",
+  "sdk": "org.gnome.Sdk",
+  "command": "bbs-radioo",
+  "finish-args": [
+    "--share=network",
+    "--share=ipc",
+    "--socket=wayland",
+    "--socket=fallback-x11",
+    "--socket=pulseaudio",
+    "--filesystem=xdg-config/bbs-radioo:create",
+    "--talk-name=org.freedesktop.Flatpak"
+  ],
+  "modules": [
+    {
+      "name": "radioo",
+      "buildsystem": "simple",
+      "build-commands": [
+        "install -Dm755 wrapper.sh /app/bin/bbs-radioo",
+        "mkdir -p /app/lib/bbs-radioo/bbs_radioo/sources",
+        "install -Dm644 src/bbs_radioo/__init__.py /app/lib/bbs-radioo/bbs_radioo/__init__.py",
+        "install -Dm644 src/bbs_radioo/main.py /app/lib/bbs-radioo/bbs_radioo/main.py",
+        "install -Dm644 src/bbs_radioo/app.py /app/lib/bbs-radioo/bbs_radioo/app.py",
+        "install -Dm644 src/bbs_radioo/player.py /app/lib/bbs-radioo/bbs_radioo/player.py",
+        "install -Dm644 src/bbs_radioo/updater.py /app/lib/bbs-radioo/bbs_radioo/updater.py",
+        "install -Dm644 src/bbs_radioo/logging_utils.py /app/lib/bbs-radioo/bbs_radioo/logging_utils.py",
+        "install -Dm644 src/bbs_radioo/theme_map.py /app/lib/bbs-radioo/bbs_radioo/theme_map.py",
+        "install -Dm644 src/bbs_radioo/station_store.py /app/lib/bbs-radioo/bbs_radioo/station_store.py",
+        "install -Dm644 src/bbs_radioo/sources/__init__.py /app/lib/bbs-radioo/bbs_radioo/sources/__init__.py",
+        "install -Dm644 src/bbs_radioo/sources/curated.py /app/lib/bbs-radioo/bbs_radioo/sources/curated.py",
+        "install -Dm644 src/bbs_radioo/sources/somafm.py /app/lib/bbs-radioo/bbs_radioo/sources/somafm.py",
+        "install -Dm644 src/bbs_radioo/sources/radiobrowser.py /app/lib/bbs-radioo/bbs_radioo/sources/radiobrowser.py",
+        "install -Dm644 data/io.github.blacksamdev.Radioo.desktop /app/share/applications/io.github.blacksamdev.Radioo.desktop",
+        "install -Dm644 data/io.github.blacksamdev.Radioo.svg /app/share/icons/hicolor/scalable/apps/io.github.blacksamdev.Radioo.svg"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "."
+        }
+      ]
+    }
+  ]
+}
