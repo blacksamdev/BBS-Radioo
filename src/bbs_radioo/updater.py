@@ -37,6 +37,17 @@ class Updater:
         return {"mpv": Updater.mpv_available()}
 
     @staticmethod
+    def kill_all_streams():
+        """Tue tous les process MPV lancés par BBS radiOO côté host via pkill."""
+        try:
+            Updater.run_host(
+                ["pkill", "-f", "BBS radiOO"],
+                quiet=True
+            )
+        except Exception:
+            pass
+
+    @staticmethod
     def play_stream(stream_url: str, ipc_socket_path: str = None, volume: int = 100):
         """Lance MPV en mode audio pour un stream radio."""
         volume = max(0, min(100, volume))

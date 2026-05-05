@@ -155,23 +155,31 @@ class RadiooApp(Gtk.Application):
         ctx = self._track_label.get_style_context()
         ctx.add_class("dim-label")
 
-        # Volume
+        # Volume — taille fixe pour ne pas être écrasé par les labels
+        vol_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        vol_box.set_hexpand(False)
         vol_label = Gtk.Label(label="🔊")
         vol_adj = Gtk.Adjustment(value=100, lower=0, upper=100,
                                  step_increment=5, page_increment=10, page_size=0)
         self._vol_slider = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL,
                                      adjustment=vol_adj)
         self._vol_slider.set_draw_value(False)
-        self._vol_slider.set_size_request(100, -1)
+        self._vol_slider.set_size_request(120, -1)
+        self._vol_slider.set_hexpand(False)
         self._vol_slider.connect("value-changed", self._on_volume_changed)
+        self._vol_pct_label = Gtk.Label(label="100%")
+        self._vol_pct_label.set_width_chars(4)
+        vol_box.append(vol_label)
+        vol_box.append(self._vol_slider)
+        vol_box.append(self._vol_pct_label)
 
         self._status_label = Gtk.Label(label="Prêt.")
         self._status_label.set_xalign(1)
+        self._status_label.set_hexpand(False)
 
         bar.append(self._now_playing_label)
         bar.append(self._track_label)
-        bar.append(vol_label)
-        bar.append(self._vol_slider)
+        bar.append(vol_box)
         bar.append(self._status_label)
         return bar
 
@@ -337,6 +345,7 @@ class RadiooApp(Gtk.Application):
 
     def _on_volume_changed(self, scale):
         volume = int(scale.get_value())
+        self._vol_pct_label.set_text(f"{volume}%")
         self.player.set_volume(volume)
 
     def _on_station_change(self, station: dict | None):

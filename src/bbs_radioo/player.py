@@ -17,6 +17,7 @@ class RadioPlayer:
 
     def __init__(self):
         self._process = None
+        self._all_processes: list = []   # tous les process lancés, pour cleanup total
         self._lock = threading.Lock()
         self._is_playing = False
         self._current_station: dict | None = None
@@ -34,7 +35,7 @@ class RadioPlayer:
     def play(self, station: dict):
         with self._lock:
             self._polling = False
-            self._stop_process()
+            self._stop_current()
             self._is_playing = True
             self._current_station = station
 
@@ -45,7 +46,7 @@ class RadioPlayer:
     def stop(self):
         self._polling = False
         with self._lock:
-            self._stop_process()
+            self._stop_current()
             self._is_playing = False
             self._current_station = None
         self._status("Arrêté.")
@@ -55,7 +56,6 @@ class RadioPlayer:
             GLib.idle_add(self.on_metadata_change, "")
 
     def set_volume(self, volume: int):
-        """Règle le volume (0-100) via IPC si MPV est actif."""
         self._volume = max(0, min(100, volume))
         self._ipc_set_property("volume", self._volume)
 
@@ -66,8 +66,23 @@ class RadioPlayer:
         return self._current_station
 
     def cleanup(self):
+        """Arrête tous les process MPV lancés par cette session."""
         self._polling = False
-        self._stop_process()
+        # 1. Quitter proprement via IPC
+        self._ipc_command("quit")
+        time.sleep(0.3)
+        # 2. Terminer tous les process trackés
+        with self._lock:
+            for proc in self._all_processes:
+                if proc and proc.poll() is None:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+            self._all_processes.clear()
+            self._process = None
+        # 3. Fallback pkill côté host sur le titre BBS radiOO
+        Updater.kill_all_streams()
         try:
             os.remove(_MPV_IPC_SOCKET)
         except OSError:
@@ -78,7 +93,6 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _ipc_command(self, *args):
-        """Envoie une commande IPC à MPV."""
         try:
             sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
             sock.settimeout(1.0)
@@ -90,7 +104,6 @@ class RadioPlayer:
             pass
 
     def _ipc_set_property(self, prop: str, value):
-        """Définit une propriété MPV via IPC."""
         try:
             sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
             sock.settimeout(1.0)
@@ -123,7 +136,6 @@ class RadioPlayer:
         return None
 
     def _poll_metadata(self):
-        """Poll media-title via IPC toutes les 5s et notifie l'UI."""
         self._polling = True
         last_title = ""
         while self._polling and self._is_playing:
@@ -138,36 +150,41 @@ class RadioPlayer:
     # internal
     # ─────────────────────────────
 
-    def _stop_process(self):
-        """Arrête MPV proprement via IPC puis terminate en fallback."""
-        # D'abord demander à MPV de quitter via IPC
+    def _stop_current(self):
+        """Arrête le process courant via IPC puis pkill fallback."""
+        # Demander à MPV de quitter via IPC
         self._ipc_command("quit")
-        time.sleep(0.2)
-        # Fallback : terminate si encore vivant
+        time.sleep(0.3)
+        # Terminer le wrapper flatpak-spawn
         if self._process and self._process.poll() is None:
             try:
                 self._process.terminate()
                 self._process.wait(timeout=2)
             except Exception:
                 pass
-        self._process = None
+        # Fallback pkill côté host
+        Updater.kill_all_streams()
         try:
             os.remove(_MPV_IPC_SOCKET)
         except OSError:
             pass
+        self._process = None
 
     def _launch(self, station: dict):
         try:
-            self._process = Updater.play_stream(
+            proc = Updater.play_stream(
                 station["stream_url"],
                 ipc_socket_path=_MPV_IPC_SOCKET,
                 volume=self._volume,
             )
+            self._process = proc
+            with self._lock:
+                self._all_processes.append(proc)
 
             # Attendre que MPV crée le socket IPC
             deadline = time.monotonic() + 8.0
             while time.monotonic() < deadline:
-                if self._process.poll() is not None:
+                if proc.poll() is not None:
                     self._status("Impossible de se connecter au stream.")
                     log_event(f"MPV exited early for {station.get('name')}")
                     with self._lock:
@@ -181,14 +198,14 @@ class RadioPlayer:
             if self.on_station_change:
                 GLib.idle_add(self.on_station_change, station)
 
-            # Démarrer le polling des métadonnées
             threading.Thread(target=self._poll_metadata, daemon=True).start()
 
-            # Surveiller la fin du process
-            self._process.wait()
+            proc.wait()
             self._polling = False
             with self._lock:
                 self._is_playing = False
+                if proc in self._all_processes:
+                    self._all_processes.remove(proc)
             if self._current_station and self._current_station.get("id") == station.get("id"):
                 self._status("Stream terminé.")
                 if self.on_station_change:
