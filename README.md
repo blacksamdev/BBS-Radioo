@@ -1,5 +1,4 @@
-# BBS radiOO ![icon](data/io.github.blacksamdev.Radioo.svg)
-
+# BBS radiOO 🎯
 > ⚠️ Work in progress
 
 Radio internet par thèmes, sans pub.
