@@ -37,13 +37,14 @@ class Updater:
         return {"mpv": Updater.mpv_available()}
 
     @staticmethod
-    def play_stream(stream_url: str, ipc_socket_path: str = None):
+    def play_stream(stream_url: str, ipc_socket_path: str = None, volume: int = 100):
         """Lance MPV en mode audio pour un stream radio."""
+        volume = max(0, min(100, volume))
         cmd = [
             "flatpak", "run", "io.mpv.Mpv",
             "--no-video",
             "--force-window=no",
-            "--volume=100",
+            f"--volume={volume}",
             "--msg-level=osd/libass=no",
             "--title=BBS radiOO - ${media-title}",
         ]
@@ -51,12 +52,3 @@ class Updater:
             cmd.append(f"--input-ipc-server={ipc_socket_path}")
         cmd.append(stream_url)
         return Updater.popen_host(cmd)
-
-    @staticmethod
-    def stop_stream(process):
-        """Arrête un process MPV."""
-        if process and process.poll() is None:
-            try:
-                process.terminate()
-            except Exception:
-                pass

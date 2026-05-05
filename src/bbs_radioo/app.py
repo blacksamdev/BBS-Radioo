@@ -3,7 +3,7 @@ import threading
 
 import gi
 gi.require_version("Gtk", "4.0")
-from gi.repository import Gtk, GLib, Gio
+from gi.repository import Gtk, GLib
 
 from bbs_radioo.logging_utils import log_event
 from bbs_radioo.player import RadioPlayer
@@ -155,11 +155,23 @@ class RadiooApp(Gtk.Application):
         ctx = self._track_label.get_style_context()
         ctx.add_class("dim-label")
 
+        # Volume
+        vol_label = Gtk.Label(label="🔊")
+        vol_adj = Gtk.Adjustment(value=100, lower=0, upper=100,
+                                 step_increment=5, page_increment=10, page_size=0)
+        self._vol_slider = Gtk.Scale(orientation=Gtk.Orientation.HORIZONTAL,
+                                     adjustment=vol_adj)
+        self._vol_slider.set_draw_value(False)
+        self._vol_slider.set_size_request(100, -1)
+        self._vol_slider.connect("value-changed", self._on_volume_changed)
+
         self._status_label = Gtk.Label(label="Prêt.")
         self._status_label.set_xalign(1)
 
         bar.append(self._now_playing_label)
         bar.append(self._track_label)
+        bar.append(vol_label)
+        bar.append(self._vol_slider)
         bar.append(self._status_label)
         return bar
 
@@ -174,8 +186,9 @@ class RadiooApp(Gtk.Application):
             self._selected_themes.discard(theme_id)
 
         if self._btn_favorites.get_active():
+            self._btn_favorites.handler_block_by_func(self._on_favorites_toggled)
             self._btn_favorites.set_active(False)
-            return
+            self._btn_favorites.handler_unblock_by_func(self._on_favorites_toggled)
 
         self._load_stations()
 
@@ -200,21 +213,28 @@ class RadiooApp(Gtk.Application):
     def _fetch_stations(self, theme_ids: list[str]):
         stations = []
 
-        # Curated (synchrone, instantané)
+        # Curated (instantané)
         stations += curated.get_stations_for_themes(theme_ids)
 
-        # SomaFM
-        stations += somafm.get_stations_for_themes(theme_ids, THEME_BY_ID)
+        # SomaFM — timeout court pour ne pas bloquer si réseau lent
+        try:
+            stations += somafm.get_stations_for_themes(theme_ids, THEME_BY_ID)
+        except Exception:
+            pass
 
-        # radio-browser
-        stations += radiobrowser.get_stations_for_themes(theme_ids, THEME_BY_ID)
+        # radio-browser — timeout court
+        try:
+            stations += radiobrowser.get_stations_for_themes(theme_ids, THEME_BY_ID)
+        except Exception:
+            pass
 
         # Dédoublonnage par id
         seen = set()
         unique = []
         for s in stations:
-            if s["id"] not in seen:
-                seen.add(s["id"])
+            sid = s.get("id", "")
+            if sid and sid not in seen:
+                seen.add(sid)
                 unique.append(s)
 
         GLib.idle_add(self._on_stations_loaded, unique)
@@ -279,9 +299,13 @@ class RadiooApp(Gtk.Application):
         play_btn = Gtk.Button(label="▶")
         play_btn.connect("clicked", self._on_play_station, station)
 
+        stop_btn = Gtk.Button(label="⏹")
+        stop_btn.connect("clicked", self._on_stop_station, station)
+
         row.append(info)
         row.append(fav_btn)
         row.append(play_btn)
+        row.append(stop_btn)
         return row
 
     # ─────────────────────────────
@@ -291,6 +315,13 @@ class RadiooApp(Gtk.Application):
     def _on_play_station(self, _btn, station: dict):
         self.player.play(station)
         self.btn_stop.set_sensitive(True)
+
+    def _on_stop_station(self, _btn, station: dict):
+        """Stop uniquement si la station en cours est celle du bouton."""
+        current = self.player.current_station()
+        if current and current.get("id") == station.get("id"):
+            self.player.stop()
+            self.btn_stop.set_sensitive(False)
 
     def _on_random(self, _btn):
         if not self._stations:
@@ -304,12 +335,17 @@ class RadiooApp(Gtk.Application):
         self.player.stop()
         self.btn_stop.set_sensitive(False)
 
+    def _on_volume_changed(self, scale):
+        volume = int(scale.get_value())
+        self.player.set_volume(volume)
+
     def _on_station_change(self, station: dict | None):
         if station:
             self._now_playing_label.set_text(f"▶ {station.get('name', '')}")
         else:
             self._now_playing_label.set_text("")
             self._track_label.set_text("")
+            self.btn_stop.set_sensitive(False)
 
     def _on_metadata_change(self, title: str):
         self._track_label.set_text(title)
@@ -324,11 +360,11 @@ class RadiooApp(Gtk.Application):
 
     def _on_favorites_toggled(self, btn):
         if btn.get_active():
-            # Désélectionner les thèmes visuellement
             for b in self._theme_buttons.values():
                 b.handler_block_by_func(self._on_theme_toggled)
                 b.set_active(False)
                 b.handler_unblock_by_func(self._on_theme_toggled)
+            self._selected_themes.clear()
             favs = self.store.all()
             self._stations = favs
             self._populate_station_list(favs)

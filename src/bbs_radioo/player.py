@@ -21,10 +21,11 @@ class RadioPlayer:
         self._is_playing = False
         self._current_station: dict | None = None
         self._polling = False
+        self._volume = 100
 
         self.on_status_change = None
         self.on_station_change = None
-        self.on_metadata_change = None  # appelé avec (title: str)
+        self.on_metadata_change = None
 
     # ─────────────────────────────
     # public
@@ -32,8 +33,8 @@ class RadioPlayer:
 
     def play(self, station: dict):
         with self._lock:
-            if self._is_playing:
-                self._stop_process()
+            self._polling = False
+            self._stop_process()
             self._is_playing = True
             self._current_station = station
 
@@ -53,6 +54,11 @@ class RadioPlayer:
         if self.on_metadata_change:
             GLib.idle_add(self.on_metadata_change, "")
 
+    def set_volume(self, volume: int):
+        """Règle le volume (0-100) via IPC si MPV est actif."""
+        self._volume = max(0, min(100, volume))
+        self._ipc_set_property("volume", self._volume)
+
     def is_playing(self) -> bool:
         return self._is_playing
 
@@ -70,6 +76,30 @@ class RadioPlayer:
     # ─────────────────────────────
     # IPC
     # ─────────────────────────────
+
+    def _ipc_command(self, *args):
+        """Envoie une commande IPC à MPV."""
+        try:
+            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            sock.settimeout(1.0)
+            sock.connect(_MPV_IPC_SOCKET)
+            msg = json.dumps({"command": list(args)}).encode() + b"\n"
+            sock.sendall(msg)
+            sock.close()
+        except Exception:
+            pass
+
+    def _ipc_set_property(self, prop: str, value):
+        """Définit une propriété MPV via IPC."""
+        try:
+            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            sock.settimeout(1.0)
+            sock.connect(_MPV_IPC_SOCKET)
+            msg = json.dumps({"command": ["set_property", prop, value]}).encode() + b"\n"
+            sock.sendall(msg)
+            sock.close()
+        except Exception:
+            pass
 
     def _ipc_get_property(self, prop: str):
         try:
@@ -109,23 +139,29 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _stop_process(self):
+        """Arrête MPV proprement via IPC puis terminate en fallback."""
+        # D'abord demander à MPV de quitter via IPC
+        self._ipc_command("quit")
+        time.sleep(0.2)
+        # Fallback : terminate si encore vivant
         if self._process and self._process.poll() is None:
             try:
                 self._process.terminate()
+                self._process.wait(timeout=2)
             except Exception:
                 pass
         self._process = None
+        try:
+            os.remove(_MPV_IPC_SOCKET)
+        except OSError:
+            pass
 
     def _launch(self, station: dict):
         try:
-            try:
-                os.remove(_MPV_IPC_SOCKET)
-            except OSError:
-                pass
-
             self._process = Updater.play_stream(
                 station["stream_url"],
                 ipc_socket_path=_MPV_IPC_SOCKET,
+                volume=self._volume,
             )
 
             # Attendre que MPV crée le socket IPC
