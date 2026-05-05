@@ -80,7 +80,7 @@ jobs:
             --gpg-sign="$KEYID" \
             --force-clean \
             build-dir \
-            io.github.blacksamdev.radioo.json
+            io.github.blacksamdev.Radioo.json
 
       - name: Sign repo
         run: |
