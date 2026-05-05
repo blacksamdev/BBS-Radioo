@@ -1,4 +1,4 @@
-# BBS radiOO 📻
+# BBS radiOO ![icon](data/io.github.blacksamdev.Radioo.svg)
 
 > ⚠️ Work in progress
 
