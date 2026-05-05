@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=BBS radiOO
+Comment=Radio internet par thèmes
+Exec=bbs-radioo
+Icon=io.github.blacksamdev.Radioo
+Type=Application
+Categories=AudioVideo;Audio;Music;Network;
+Terminal=false
+StartupNotify=true
+X-Flatpak=io.github.blacksamdev.Radioo
