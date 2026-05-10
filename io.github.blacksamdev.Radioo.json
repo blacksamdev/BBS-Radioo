@@ -20,9 +20,11 @@
       "build-commands": [
         "install -Dm755 wrapper.sh /app/bin/bbs-radioo",
         "mkdir -p /app/lib/bbs-radioo/bbs_radioo/sources",
+        "mkdir -p /app/lib/bbs-radioo/bbs_radioo/ui",
         "install -Dm644 src/bbs_radioo/__init__.py /app/lib/bbs-radioo/bbs_radioo/__init__.py",
         "install -Dm644 src/bbs_radioo/main.py /app/lib/bbs-radioo/bbs_radioo/main.py",
         "install -Dm644 src/bbs_radioo/app.py /app/lib/bbs-radioo/bbs_radioo/app.py",
+        "install -Dm644 src/bbs_radioo/ui/index.html /app/lib/bbs-radioo/bbs_radioo/ui/index.html",
         "install -Dm644 src/bbs_radioo/player.py /app/lib/bbs-radioo/bbs_radioo/player.py",
         "install -Dm644 src/bbs_radioo/updater.py /app/lib/bbs-radioo/bbs_radioo/updater.py",
         "install -Dm644 src/bbs_radioo/logging_utils.py /app/lib/bbs-radioo/bbs_radioo/logging_utils.py",
