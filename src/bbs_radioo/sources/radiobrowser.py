@@ -30,6 +30,7 @@ def _station_to_dict(s: dict) -> dict | None:
         "id": f"rb-{s.get('stationuuid', '')}",
         "name": s.get("name", "").strip(),
         "stream_url": url,
+        "favicon": s.get("favicon", ""),
         "homepage": s.get("homepage", ""),
         "description": s.get("tags", ""),
         "tags": [t.strip() for t in s.get("tags", "").split(",") if t.strip()],

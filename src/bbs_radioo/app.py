@@ -18,7 +18,6 @@ _UI_HTML = os.path.join(os.path.dirname(__file__), "ui", "index.html")
 _SETTINGS_FILE = os.path.join(GLib.get_user_config_dir(), "bbs-radioo", "settings.json")
 
 _SECTION_PARAMS = {
-    "discover": {"hidebroken": "true", "order": "clickcount", "reverse": "true", "limit": "80"},
     "trending": {"hidebroken": "true", "order": "clicktrend", "reverse": "true", "limit": "80"},
     "popular":  {"hidebroken": "true", "order": "votes",      "reverse": "true", "limit": "80"},
 }
@@ -66,6 +65,7 @@ class RadiooApp(Gtk.Application):
         self.player = RadioPlayer()
         self.store = StationStore()
         self._window_created = False
+        self._shutting_down = False
 
     # ─────────────────────────────
     # Activation
@@ -80,7 +80,9 @@ class RadiooApp(Gtk.Application):
         self.win = Gtk.ApplicationWindow(application=app)
         self.win.set_title("BBS radiOO")
         self.win.set_default_size(1160, 700)
-        self.win.connect("destroy", self._on_shutdown)
+
+        # close-request : retourner True pour gérer le shutdown nous-mêmes
+        self.win.connect("close-request", self._on_close_request)
 
         # ── WebKit bridge ──
         self.cm = WebKit.UserContentManager()
@@ -112,6 +114,25 @@ class RadiooApp(Gtk.Application):
         self.player.on_metadata_change = self._cb_metadata
 
         self.player.set_volume(self.settings.get("volume", 100))
+
+    # ─────────────────────────────
+    # Shutdown
+    # ─────────────────────────────
+
+    def _on_close_request(self, _win) -> bool:
+        """Intercepte la fermeture de fenêtre pour cleanup synchrone avant exit."""
+        if self._shutting_down:
+            return False  # laisser GTK fermer
+        self._shutting_down = True
+        log_event("Shutdown requested.")
+        try:
+            self.player.cleanup()
+        except Exception as exc:
+            log_event(f"Cleanup error: {exc}")
+        # Sortie forcée — évite que des threads ou sources GLib
+        # empêchent le process de se terminer
+        os._exit(0)
+        return True  # jamais atteint, mais stoppe la propagation GTK
 
     # ─────────────────────────────
     # WebKit events
@@ -191,18 +212,14 @@ class RadiooApp(Gtk.Application):
         """Fusionne curated + SomaFM + RadioBrowser pour un genre donné."""
         try:
             theme_ids = [genre]
-
-            # 1. Curated en premier — sources fiables, pas de pub
             results = curated.get_stations_for_themes(theme_ids)
             seen_ids = {s["id"] for s in results}
 
-            # 2. SomaFM
             for s in somafm.get_stations_for_themes(theme_ids, THEME_BY_ID):
                 if s["id"] not in seen_ids:
                     seen_ids.add(s["id"])
                     results.append(s)
 
-            # 3. RadioBrowser
             for s in radiobrowser.get_stations_for_themes(theme_ids, THEME_BY_ID):
                 if s["id"] not in seen_ids:
                     seen_ids.add(s["id"])
@@ -215,8 +232,8 @@ class RadiooApp(Gtk.Application):
         GLib.idle_add(self._push_stations, results)
 
     def _fetch_section(self, section: str):
-        """Sections Découvrir / Tendances / Populaires — RadioBrowser uniquement."""
-        params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["discover"])
+        """Sections En ce moment / Top stations — RadioBrowser uniquement."""
+        params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["popular"])
         try:
             raw = radiobrowser._get("/stations", params)
         except Exception as exc:
@@ -245,7 +262,7 @@ class RadiooApp(Gtk.Application):
     def _push_stations(self, stations: list):
         payload = json.dumps(stations, ensure_ascii=False)
         self._js(f"window.onStationsLoaded({payload})")
-        return False  # stoppe GLib.idle_add
+        return False
 
     def _push_favorites(self):
         favs = self.store.all()
@@ -264,11 +281,3 @@ class RadiooApp(Gtk.Application):
 
     def _cb_metadata(self, title: str):
         self._js(f"window.onMetadata({json.dumps(title)})")
-
-    # ─────────────────────────────
-    # Shutdown
-    # ─────────────────────────────
-
-    def _on_shutdown(self, _win):
-        self.player.cleanup()
-        self.quit()

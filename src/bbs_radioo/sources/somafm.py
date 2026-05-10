@@ -21,7 +21,7 @@ def _fetch_channels() -> list[dict]:
 
 
 def _best_stream(playlists: list[dict]) -> str | None:
-    """Choisit le meilleur stream (AAC > MP3, qualite la plus haute)."""
+    """Choisit le meilleur stream (AAC > MP3, qualité la plus haute)."""
     order = {"aac": 0, "aacp": 1, "mp3": 2}
     sorted_pl = sorted(
         playlists,
@@ -36,7 +36,6 @@ def get_stations_for_themes(theme_ids: list[str], theme_map: dict) -> list[dict]
     if not channels:
         return []
 
-    # Collecte tous les tags SomaFM des thèmes sélectionnés
     wanted_tags: set[str] = set()
     for tid in theme_ids:
         theme = theme_map.get(tid, {})
@@ -59,10 +58,12 @@ def get_stations_for_themes(theme_ids: list[str], theme_map: dict) -> list[dict]
             "id": f"somafm-{ch.get('id', '')}",
             "name": ch.get("title", ""),
             "stream_url": stream_url,
+            "favicon": ch.get("image", "") or ch.get("thumbnail", ""),
             "homepage": ch.get("homePageUrl", ""),
             "description": ch.get("description", ""),
             "tags": list(ch_tags),
             "listeners": ch.get("listeners", 0),
+            "country": "United States",
             "source": "somafm",
         })
 
