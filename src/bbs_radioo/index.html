@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BBS radiOO</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0a0a0a;
+  --bg-2:     #111111;
+  --bg-3:     #191919;
+  --bg-4:     #242424;
+  --border:   rgba(255,255,255,0.07);
+  --border-h: rgba(255,255,255,0.13);
+  --t1: #ebebeb;
+  --t2: #888;
+  --t3: #4a4a4a;
+  --accent: #e11d2e;
+  --accent-d: rgba(225,29,46,0.12);
+  --accent-h: #ff3344;
+  --gold: #f0b030;
+  --font: 'Syne', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--t1); font-family: var(--font); font-size: 14px; overflow: hidden; }
+
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 2px; }
+
+.app { display: flex; height: 100vh; }
+
+/* ═══ SIDEBAR ═══ */
+.sidebar {
+  width: 208px; min-width: 208px;
+  background: var(--bg-2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden; padding-bottom: 16px;
+}
+.sidebar-logo {
+  padding: 16px 14px 14px;
+  display: flex; align-items: center; gap: 11px;
+  border-bottom: 1px solid var(--border); margin-bottom: 8px;
+}
+
+/* Logo simplifié : cercles radar + sweep rouge + cible */
+.logo-svg { width: 36px; height: 36px; flex-shrink: 0; }
+
+.logo-text { font-size: 15px; font-weight: 800; letter-spacing: 0.3px; color: var(--t1); line-height: 1; }
+.logo-text em { font-style: normal; color: var(--accent); }
+
+.nav-section { padding: 0 10px 4px; }
+.nav-label {
+  font-size: 9.5px; font-weight: 700; color: var(--t3);
+  letter-spacing: 1.6px; text-transform: uppercase; padding: 12px 6px 5px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 7px; cursor: pointer;
+  color: var(--t2); font-size: 13px; font-weight: 500;
+  transition: background 0.12s, color 0.12s; user-select: none;
+}
+.nav-item:hover { background: var(--bg-3); color: var(--t1); }
+.nav-item.active { background: var(--accent-d); color: var(--accent); }
+.nav-icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.6; }
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-badge {
+  margin-left: auto; background: var(--bg-4); color: var(--t2);
+  font-family: var(--mono); font-size: 9.5px; padding: 2px 6px; border-radius: 20px;
+}
+.nav-item.active .nav-badge { background: var(--accent); color: #fff; }
+.genre-emoji { font-size: 13px; flex-shrink: 0; line-height: 1; }
+
+/* ═══ MAIN ═══ */
+.main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.main-header {
+  padding: 18px 22px 14px;
+  display: flex; align-items: center; gap: 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.main-title { font-size: 19px; font-weight: 800; color: var(--t1); }
+.main-count { font-size: 11px; color: var(--t3); font-family: var(--mono); margin-top: 2px; }
+.search-wrap {
+  margin-left: auto;
+  display: flex; align-items: center;
+  background: var(--bg-3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 11px; gap: 7px; transition: border-color 0.15s;
+}
+.search-wrap:focus-within { border-color: var(--accent); }
+.search-wrap svg { color: var(--t3); flex-shrink: 0; }
+.search-wrap input {
+  background: none; border: none; outline: none;
+  color: var(--t1); font-family: var(--font); font-size: 13px; width: 170px;
+}
+.search-wrap input::placeholder { color: var(--t3); }
+.main-content { flex: 1; overflow-y: auto; padding: 16px 22px 28px; }
+
+/* Station grid */
+.station-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(248px, 1fr)); gap: 9px; }
+.station-card {
+  display: flex; align-items: center; gap: 11px;
+  background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 11px 13px; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  position: relative; overflow: hidden;
+}
+.station-card:hover { background: var(--bg-3); border-color: var(--border-h); transform: translateY(-1px); }
+.station-card.playing { border-color: var(--accent); background: var(--accent-d); }
+.station-card.playing::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--accent);
+}
+.station-logo {
+  width: 50px; height: 50px; border-radius: 8px;
+  flex-shrink: 0; overflow: hidden; position: relative;
+}
+.station-logo img {
+  width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1;
+}
+.station-logo .logo-gen {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; font-weight: 800;
+  color: rgba(255,255,255,0.88); letter-spacing: -0.5px;
+}
+.station-info { flex: 1; min-width: 0; }
+.station-name {
+  font-size: 13px; font-weight: 700; color: var(--t1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px;
+}
+.station-desc { font-size: 11px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.station-country { font-size: 10.5px; color: var(--t3); font-family: var(--mono); margin-top: 3px; display: block; }
+.play-btn {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--bg-4); border: 1px solid var(--border);
+  color: var(--t2); cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+}
+.play-btn:hover, .station-card.playing .play-btn {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+/* States */
+.loading-state, .empty-state {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  height: 320px; color: var(--t3); gap: 12px; text-align: center;
+}
+.spinner {
+  width: 26px; height: 26px; border: 2px solid var(--bg-4); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.65s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-icon { font-size: 34px; opacity: 0.35; margin-bottom: 4px; }
+.empty-head { font-size: 13.5px; font-weight: 600; color: var(--t2); }
+.empty-sub { font-size: 11.5px; }
+.status-bar {
+  padding: 5px 22px; background: var(--bg-2); border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--t3); font-family: var(--mono);
+  flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ═══ PLAYER ═══ */
+.player {
+  width: 258px; min-width: 258px;
+  background: var(--bg-2); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.artwork {
+  position: relative; height: 220px; flex-shrink: 0;
+  overflow: hidden; background: #0d0d0d;
+  display: flex; align-items: center; justify-content: center;
+}
+.artwork-blur {
+  position: absolute; inset: -30px;
+  background-size: cover; background-position: center;
+  filter: blur(28px) brightness(0.55) saturate(2.2);
+  opacity: 0; transition: opacity 0.7s; pointer-events: none;
+}
+.artwork-blur.on { opacity: 1; }
+.artwork-vignette {
+  position: absolute; inset: 0; z-index: 1;
+  background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%);
+  pointer-events: none;
+}
+.artwork-idle {
+  position: relative; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 0.2;
+}
+.artwork-idle span { font-size: 10px; font-family: var(--mono); }
+.artwork-real {
+  position: relative; z-index: 2;
+  width: 116px; height: 116px; border-radius: 14px; overflow: hidden;
+  display: none; align-items: center; justify-content: center;
+  box-shadow: 0 20px 56px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06);
+}
+.artwork-real img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.artwork-gen {
+  position: relative; z-index: 2;
+  width: 116px; height: 116px; border-radius: 14px;
+  display: none; align-items: center; justify-content: center;
+  flex-direction: column; gap: 2px; overflow: hidden;
+  box-shadow: 0 20px 56px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08);
+}
+.artwork-gen-initials {
+  font-size: 40px; font-weight: 800;
+  color: rgba(255,255,255,0.92); letter-spacing: -2px; line-height: 1;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5); position: relative; z-index: 1;
+}
+.artwork-gen-deco { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+
+/* Infos station dans le player */
+.player-info { padding: 14px 15px 8px; flex-shrink: 0; }
+.player-name {
+  font-size: 14px; font-weight: 700; color: var(--t1);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px;
+}
+.player-name.idle { font-size: 12px; color: var(--t3); font-weight: 400; }
+
+/* Badges techniques : bitrate, codec, source */
+.player-badges {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+  margin-bottom: 5px; min-height: 18px;
+}
+.badge {
+  font-size: 9.5px; font-family: var(--mono); font-weight: 500;
+  padding: 2px 6px; border-radius: 4px;
+  letter-spacing: 0.3px; white-space: nowrap;
+}
+.badge-bitrate { background: rgba(225,29,46,0.15); color: #ff6070; }
+.badge-codec   { background: rgba(255,255,255,0.07); color: var(--t2); }
+.badge-source  { background: rgba(255,255,255,0.05); color: var(--t3); }
+.badge-country { background: rgba(255,255,255,0.05); color: var(--t3); }
+
+.player-track {
+  font-size: 11.5px; color: var(--accent); font-family: var(--mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 15px;
+}
+.bars { display: none; align-items: flex-end; gap: 2.5px; height: 13px; margin-top: 7px; }
+.bars.on { display: flex; }
+.bar { width: 3px; background: var(--accent); border-radius: 2px; animation: bounce 0.9s ease-in-out infinite; }
+.bar:nth-child(1) { height: 8px;  animation-delay: 0s;    }
+.bar:nth-child(2) { height: 13px; animation-delay: 0.18s; }
+.bar:nth-child(3) { height: 6px;  animation-delay: 0.36s; }
+.bar:nth-child(4) { height: 10px; animation-delay: 0.09s; }
+@keyframes bounce { 0%,100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+
+.controls {
+  display: flex; align-items: center; justify-content: center;
+  gap: 12px; padding: 4px 15px 12px; flex-shrink: 0;
+}
+.ctrl {
+  border: 1px solid var(--border); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; background: var(--bg-3); color: var(--t2); border-radius: 50%;
+}
+.ctrl:hover { border-color: var(--border-h); color: var(--t1); }
+.ctrl.sm { width: 38px; height: 38px; }
+.ctrl.lg { width: 52px; height: 52px; background: var(--accent); border-color: var(--accent); color: #fff; }
+.ctrl.lg:hover { background: var(--accent-h); border-color: var(--accent-h); }
+.ctrl.gold { color: var(--gold); border-color: rgba(240,176,48,0.35); }
+
+.vol-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 15px 12px; flex-shrink: 0;
+}
+.vol-icon { color: var(--t3); flex-shrink: 0; }
+.vol-slider {
+  flex: 1; -webkit-appearance: none; height: 3px; border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) var(--v, 100%), var(--bg-4) var(--v, 100%));
+  outline: none;
+}
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px;
+  background: var(--t1); border-radius: 50%; cursor: pointer; transition: background 0.15s;
+}
+.vol-slider::-webkit-slider-thumb:hover { background: var(--accent); }
+.vol-pct { font-size: 10.5px; color: var(--t3); font-family: var(--mono); min-width: 32px; text-align: right; }
+
+.divider { height: 1px; background: var(--border); margin: 0 15px; flex-shrink: 0; }
+
+.recent-panel { flex: 1; overflow-y: auto; padding: 12px 15px; display: none; }
+.recent-label {
+  font-size: 9.5px; font-weight: 700; color: var(--t3);
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px;
+}
+.track-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+}
+.track-item:last-child { border: none; }
+.track-num { font-size: 10px; color: var(--t3); font-family: var(--mono); width: 14px; flex-shrink: 0; }
+.track-title { flex: 1; font-size: 12px; font-weight: 500; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-time { font-size: 10px; color: var(--t3); font-family: var(--mono); flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <!--
+        Logo simplifié : on isole ce qui compte visuellement —
+        les 3 cercles radar, le sweep rouge et le blip/cible.
+        Antenne, croix et barre supprimés pour plus de lisibilité.
+      -->
+      <svg class="logo-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <!-- Fond -->
+        <rect width="64" height="64" rx="14" fill="#22262b"/>
+        <!-- Cercles radar — plus visibles -->
+        <circle cx="32" cy="36" r="26" fill="none" stroke="#fff8df" stroke-width="1"   opacity="0.25"/>
+        <circle cx="32" cy="36" r="17" fill="none" stroke="#fff8df" stroke-width="1.2" opacity="0.5"/>
+        <circle cx="32" cy="36" r="8"  fill="none" stroke="#fff8df" stroke-width="1.5" opacity="0.8"/>
+        <!-- Sweep rouge — épais et bien visible -->
+        <line x1="32" y1="36" x2="52" y2="16"
+              stroke="#e11d2e" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Blip / cible au bout du sweep -->
+        <circle cx="50" cy="18" r="3.5" fill="#fff8df"/>
+        <circle cx="50" cy="18" r="1.5" fill="#e11d2e"/>
+        <!-- Point central -->
+        <circle cx="32" cy="36" r="3.5" fill="#e11d2e"/>
+        <circle cx="32" cy="36" r="1.5" fill="#22262b"/>
+      </svg>
+      <span class="logo-text">BBS radi<em>OO</em></span>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Sélections</div>
+      <div class="nav-item active" onclick="setSection(this,'En ce moment','trending','section')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><polyline points="1,11 4.5,7 7,9.5 10,5.5 15,8"/></svg>
+        En ce moment
+      </div>
+      <div class="nav-item" onclick="setSection(this,'Top stations','popular','section')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.84 3.73 4.12.6-2.98 2.9.7 4.1L8 10.77 4.32 12.83l.7-4.1L2.04 5.83l4.12-.6z"/></svg>
+        Top stations
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Bibliothèque</div>
+      <div class="nav-item" onclick="setSection(this,'Favoris','favorites','favorites')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>
+        Favoris
+        <span class="nav-badge" id="fav-badge">0</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Genres</div>
+      <div class="nav-item" onclick="setSection(this,'Lo-fi','lofi','genre')"><span class="genre-emoji">🎧</span> Lo-fi</div>
+      <div class="nav-item" onclick="setSection(this,'Jazz','jazz','genre')"><span class="genre-emoji">🎷</span> Jazz</div>
+      <div class="nav-item" onclick="setSection(this,'Classique','classical','genre')"><span class="genre-emoji">🎻</span> Classique</div>
+      <div class="nav-item" onclick="setSection(this,'Ambiant','ambient','genre')"><span class="genre-emoji">🌌</span> Ambiant</div>
+      <div class="nav-item" onclick="setSection(this,'Electronic','electronic','genre')"><span class="genre-emoji">🎛️</span> Electronic</div>
+      <div class="nav-item" onclick="setSection(this,'Metal','metal','genre')"><span class="genre-emoji">🤘</span> Metal</div>
+      <div class="nav-item" onclick="setSection(this,'Focus','focus','genre')"><span class="genre-emoji">🧠</span> Focus</div>
+      <div class="nav-item" onclick="setSection(this,'World','world','genre')"><span class="genre-emoji">🌍</span> World</div>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="main-header">
+      <div>
+        <div class="main-title" id="section-title">En ce moment</div>
+        <div class="main-count" id="station-count"></div>
+      </div>
+      <div class="search-wrap">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
+        <input type="text" id="search-input" placeholder="Rechercher une station..." oninput="filterStations(this.value)">
+      </div>
+    </div>
+
+    <div class="main-content">
+      <div class="loading-state" id="loading" style="display:none">
+        <div class="spinner"></div>
+        <span>Chargement des stations...</span>
+      </div>
+      <div class="empty-state" id="empty">
+        <div class="empty-icon">📡</div>
+        <div class="empty-head">Aucune station</div>
+        <div class="empty-sub">Sélectionne un genre ou une section</div>
+      </div>
+      <div class="station-grid" id="grid" style="display:none"></div>
+    </div>
+
+    <div class="status-bar" id="status">Prêt.</div>
+  </main>
+
+  <!-- PLAYER -->
+  <aside class="player">
+    <div class="artwork">
+      <div class="artwork-blur" id="artwork-blur"></div>
+      <div class="artwork-vignette"></div>
+
+      <!-- Idle : logo radar simplifié -->
+      <div class="artwork-idle" id="artwork-idle">
+        <svg width="56" height="56" viewBox="0 0 64 64">
+          <rect width="64" height="64" rx="14" fill="#1a1a1a"/>
+          <circle cx="32" cy="36" r="26" fill="none" stroke="#fff8df" stroke-width="1"   opacity="0.15"/>
+          <circle cx="32" cy="36" r="17" fill="none" stroke="#fff8df" stroke-width="1.2" opacity="0.28"/>
+          <circle cx="32" cy="36" r="8"  fill="none" stroke="#fff8df" stroke-width="1.5" opacity="0.45"/>
+          <line x1="32" y1="36" x2="52" y2="16" stroke="#e11d2e" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+          <circle cx="50" cy="18" r="3.5" fill="#fff8df" opacity="0.4"/>
+          <circle cx="50" cy="18" r="1.5" fill="#e11d2e" opacity="0.5"/>
+          <circle cx="32" cy="36" r="3.5" fill="#e11d2e" opacity="0.5"/>
+          <circle cx="32" cy="36" r="1.5" fill="#1a1a1a"/>
+        </svg>
+        <span>aucune station</span>
+      </div>
+
+      <!-- Image réelle -->
+      <div class="artwork-real" id="artwork-real">
+        <img id="artwork-img" src="" alt=""
+             onload="onArtworkLoaded()"
+             onerror="onArtworkError()">
+      </div>
+
+      <!-- Visuel généré -->
+      <div class="artwork-gen" id="artwork-gen">
+        <div class="artwork-gen-deco">
+          <svg width="116" height="116" viewBox="0 0 116 116" fill="none">
+            <circle cx="58" cy="68" r="48" stroke="white" stroke-width="1" opacity="0.1"/>
+            <circle cx="58" cy="68" r="34" stroke="white" stroke-width="1" opacity="0.16"/>
+            <circle cx="58" cy="68" r="20" stroke="white" stroke-width="1" opacity="0.22"/>
+            <line x1="58" y1="68" x2="92" y2="34" stroke="white" stroke-width="1.5" opacity="0.25" stroke-linecap="round"/>
+            <circle cx="90" cy="36" r="3" fill="white" opacity="0.3"/>
+          </svg>
+        </div>
+        <div class="artwork-gen-initials" id="artwork-gen-initials"></div>
+      </div>
+    </div>
+
+    <div class="player-info">
+      <div class="player-name idle" id="player-name">Aucune station sélectionnée</div>
+
+      <!-- Badges techniques -->
+      <div class="player-badges" id="player-badges"></div>
+
+      <div class="player-track" id="player-track"></div>
+      <div class="bars" id="bars">
+        <div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="ctrl sm" id="btn-fav" title="Favori" onclick="toggleFav()">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/>
+        </svg>
+      </button>
+      <button class="ctrl lg" id="btn-play" title="Lecture / Stop" onclick="togglePlay()">
+        <svg id="icon-play" width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5l8 4.5-8 4.5V3.5z"/></svg>
+        <svg id="icon-stop" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="display:none"><rect x="4" y="4" width="8" height="8" rx="1"/></svg>
+      </button>
+    </div>
+
+    <div class="vol-row">
+      <svg class="vol-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M3.5 6H1.5v4H3.5L7 13V3L3.5 6zm7-.4c-.6-.6-1-.6-1-.6V7s.4 0 .9.5A3 3 0 0 1 12 10a3 3 0 0 1-1.6 2.5c-.5.4-.9.5-.9.5v1s.4 0 1-.6C11.8 12.6 13 11.4 13 10s-1.2-2.6-2.5-4.4z"/>
+      </svg>
+      <input type="range" class="vol-slider" id="vol" min="0" max="100" value="100"
+             style="--v:100%" oninput="setVol(this.value)">
+      <span class="vol-pct" id="vol-pct">100%</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="recent-panel" id="recent-panel">
+      <div class="recent-label">Derniers titres</div>
+      <div id="recent-list"></div>
+    </div>
+  </aside>
+
+</div>
+<script>
+// ── State ──
+let curStation = null, playing = false;
+let favorites = {}, recentTracks = [], allStations = [], filtered = [];
+
+const PALETTES = [
+  ['#1a1060','#4b0082'], ['#0a2a1a','#0d5c2e'], ['#2a0a0a','#7c1515'],
+  ['#0a1a2a','#0d3d6b'], ['#1a0a2a','#5c0d7c'], ['#2a1a00','#7c4800'],
+  ['#001a1a','#0d5555'], ['#1a0a1a','#6b0d5c'], ['#001a2a','#0d4060'],
+  ['#1a1a00','#4a4a00'], ['#2a0a10','#800030'], ['#001020','#004060'],
+];
+
+function nameHash(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+function getPalette(n) { return PALETTES[nameHash(n||'') % PALETTES.length]; }
+function initials(n)   { return (n||'?').split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+
+function formatBitrate(br) {
+  if (!br || br === 0) return '';
+  return br + ' kbps';
+}
+function formatCodec(c) {
+  if (!c) return '';
+  return c.toUpperCase();
+}
+
+// ── Bridge ──
+const bridge = {
+  send(msg) {
+    try { window.webkit.messageHandlers.bbsradioo.postMessage(JSON.stringify(msg)); }
+    catch(e) { console.log('[bridge]', JSON.stringify(msg)); }
+  }
+};
+
+// ── Python → JS ──
+window.onStationsLoaded  = (s) => showStations(s);
+window.onStatusChange    = (t) => { document.getElementById('status').textContent = t; };
+window.onMetadata        = (t) => setTrack(t);
+window.onStationChange   = (s) => {
+  if (s) { playing = true; renderPlayer(s); highlightCard(s.id); }
+  else   { playing = false; setPlayIcon(false); document.getElementById('bars').classList.remove('on'); }
+};
+window.onFavoritesLoaded = (favs) => {
+  favorites = {};
+  favs.forEach(f => favorites[f.id] = f);
+  document.getElementById('fav-badge').textContent = favs.length || '0';
+  updateFavIcon();
+};
+
+// ── Navigation ──
+function setSection(el, title, key, type) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('section-title').textContent = title;
+  document.getElementById('search-input').value = '';
+  if (type === 'favorites') { showStations(Object.values(favorites)); return; }
+  showLoading();
+  if (type === 'genre') bridge.send({ action: 'load_genre',   genre: key });
+  else                  bridge.send({ action: 'load_section', section: key });
+}
+
+// ── Station list ──
+function showLoading() {
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('empty').style.display   = 'none';
+  document.getElementById('grid').style.display    = 'none';
+  document.getElementById('station-count').textContent = '';
+}
+
+function showStations(list) {
+  allStations = list; filtered = list;
+  document.getElementById('loading').style.display = 'none';
+  if (!list.length) {
+    document.getElementById('empty').style.display = 'flex';
+    document.getElementById('grid').style.display  = 'none';
+    document.getElementById('station-count').textContent = '';
+    return;
+  }
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('grid').style.display  = 'grid';
+  renderGrid(list);
+}
+
+function renderGrid(list) {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  document.getElementById('station-count').textContent =
+    `${list.length} station${list.length > 1 ? 's' : ''}`;
+
+  list.forEach(st => {
+    const init = initials(st.name);
+    const isNow = curStation && curStation.id === st.id && playing;
+    const [c1, c2] = getPalette(st.name);
+
+    const logoHTML = st.favicon
+      ? `<img src="${st.favicon}" alt="${init}"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="logo-gen" style="display:none;background:linear-gradient(135deg,${c1},${c2})">${init}</div>`
+      : `<div class="logo-gen" style="background:linear-gradient(135deg,${c1},${c2})">${init}</div>`;
+
+    const card = document.createElement('div');
+    card.className = 'station-card' + (isNow ? ' playing' : '');
+    card.dataset.id = st.id;
+    card.innerHTML = `
+      <div class="station-logo">${logoHTML}</div>
+      <div class="station-info">
+        <div class="station-name">${st.name||''}</div>
+        <div class="station-desc">${st.description||''}</div>
+        <span class="station-country">${st.country||''}</span>
+      </div>
+      <button class="play-btn" title="${isNow?'Stop':'Écouter'}">
+        ${isNow
+          ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10" rx="1"/></svg>'
+          : '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>'}
+      </button>`;
+    card.querySelector('.play-btn').addEventListener('click', e => { e.stopPropagation(); doPlay(st); });
+    card.addEventListener('click', () => doPlay(st));
+    grid.appendChild(card);
+  });
+}
+
+function filterStations(q) {
+  q = q.toLowerCase();
+  filtered = q
+    ? allStations.filter(s =>
+        (s.name||'').toLowerCase().includes(q) ||
+        (s.description||'').toLowerCase().includes(q) ||
+        (s.country||'').toLowerCase().includes(q))
+    : allStations;
+  if (document.getElementById('grid').style.display !== 'none') renderGrid(filtered);
+}
+
+// ── Playback ──
+function doPlay(st) {
+  if (curStation && curStation.id === st.id && playing) { doStop(); return; }
+  curStation = st; playing = true;
+  bridge.send({ action: 'play', station: st });
+  renderPlayer(st);
+  highlightCard(st.id);
+  document.getElementById('status').textContent = `Connexion à ${st.name}...`;
+}
+
+function doStop() {
+  bridge.send({ action: 'stop' });
+  playing = false; setPlayIcon(false);
+  document.getElementById('bars').classList.remove('on');
+  document.getElementById('player-track').textContent = '';
+  document.getElementById('status').textContent = 'Arrêté.';
+  highlightCard(null);
+}
+
+function togglePlay() {
+  if (!curStation) return;
+  if (playing) doStop();
+  else {
+    bridge.send({ action: 'play', station: curStation });
+    playing = true; setPlayIcon(true);
+    document.getElementById('bars').classList.add('on');
+  }
+}
+
+function toggleFav() {
+  if (!curStation) return;
+  bridge.send({ action: 'toggle_favorite', station: curStation });
+  const id = curStation.id;
+  if (favorites[id]) delete favorites[id]; else favorites[id] = curStation;
+  document.getElementById('fav-badge').textContent = Object.keys(favorites).length || '0';
+  updateFavIcon();
+}
+
+function setVol(v) {
+  v = parseInt(v);
+  document.getElementById('vol-pct').textContent = v + '%';
+  document.getElementById('vol').style.setProperty('--v', v + '%');
+  bridge.send({ action: 'set_volume', volume: v });
+}
+
+// ── Player panel ──
+function renderPlayer(st) {
+  const nameEl = document.getElementById('player-name');
+  nameEl.textContent = st.name || '';
+  nameEl.classList.remove('idle');
+
+  // Badges techniques
+  const badgesEl = document.getElementById('player-badges');
+  badgesEl.innerHTML = '';
+  if (st.bitrate && st.bitrate > 0) {
+    badgesEl.innerHTML += `<span class="badge badge-bitrate">${st.bitrate} kbps</span>`;
+  }
+  if (st.codec) {
+    badgesEl.innerHTML += `<span class="badge badge-codec">${st.codec.toUpperCase()}</span>`;
+  }
+  if (st.country) {
+    badgesEl.innerHTML += `<span class="badge badge-country">${st.country}</span>`;
+  }
+  const srcLabel = { somafm: 'SomaFM', curated: 'Curated', radiobrowser: 'RadioBrowser' };
+  if (st.source && srcLabel[st.source]) {
+    badgesEl.innerHTML += `<span class="badge badge-source">${srcLabel[st.source]}</span>`;
+  }
+
+  setPlayIcon(true);
+  document.getElementById('bars').classList.add('on');
+  document.getElementById('player-track').textContent = '';
+
+  const idle    = document.getElementById('artwork-idle');
+  const real    = document.getElementById('artwork-real');
+  const gen     = document.getElementById('artwork-gen');
+  const blur    = document.getElementById('artwork-blur');
+  const img     = document.getElementById('artwork-img');
+  const genInit = document.getElementById('artwork-gen-initials');
+
+  idle.style.display = 'none';
+
+  if (st.favicon) {
+    real.style.display = 'flex';
+    gen.style.display  = 'none';
+    img.src = st.favicon;
+    blur.style.backgroundImage = `url(${st.favicon})`;
+    blur.style.background = '';
+    blur.classList.add('on');
+  } else {
+    _showGenerated(st);
+  }
+
+  updateFavIcon();
+}
+
+function _showGenerated(st) {
+  const real    = document.getElementById('artwork-real');
+  const gen     = document.getElementById('artwork-gen');
+  const blur    = document.getElementById('artwork-blur');
+  const genInit = document.getElementById('artwork-gen-initials');
+  real.style.display = 'none';
+  gen.style.display  = 'flex';
+  const [c1, c2] = getPalette(st.name || '');
+  gen.style.background = `linear-gradient(145deg, ${c1}, ${c2})`;
+  genInit.textContent = initials(st.name);
+  blur.style.backgroundImage = '';
+  blur.style.background = `linear-gradient(145deg, ${c1}, ${c2})`;
+  blur.classList.add('on');
+}
+
+function onArtworkLoaded() { /* image OK */ }
+
+function onArtworkError() {
+  if (curStation) _showGenerated(curStation);
+}
+
+function setTrack(title) {
+  document.getElementById('player-track').textContent = title || '';
+  if (title) { document.getElementById('bars').classList.add('on'); addRecent(title); }
+}
+
+function setPlayIcon(on) {
+  document.getElementById('icon-play').style.display = on ? 'none' : 'block';
+  document.getElementById('icon-stop').style.display = on ? 'block' : 'none';
+}
+
+function updateFavIcon() {
+  const btn = document.getElementById('btn-fav');
+  const on = curStation && !!favorites[curStation.id];
+  btn.classList.toggle('gold', on);
+  btn.innerHTML = on
+    ? '<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>'
+    : '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>';
+}
+
+function highlightCard(id) {
+  document.querySelectorAll('.station-card').forEach(c => {
+    const active = c.dataset.id === id;
+    c.classList.toggle('playing', active);
+    const btn = c.querySelector('.play-btn');
+    if (btn) btn.innerHTML = active
+      ? '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10" rx="1"/></svg>'
+      : '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>';
+  });
+}
+
+// ── Recent tracks ──
+function addRecent(title) {
+  const t = new Date().toLocaleTimeString('fr', { hour: '2-digit', minute: '2-digit' });
+  recentTracks = [{ title, time: t }, ...recentTracks.filter(r => r.title !== title)].slice(0, 8);
+  const panel = document.getElementById('recent-panel');
+  panel.style.display = 'block';
+  document.getElementById('recent-list').innerHTML = recentTracks.map((r, i) => `
+    <div class="track-item">
+      <span class="track-num">${i+1}</span>
+      <span class="track-title">${r.title}</span>
+      <span class="track-time">${r.time}</span>
+    </div>`).join('');
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', () => { showLoading(); });
+</script>
+</body>
+</html>

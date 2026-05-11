@@ -57,7 +57,12 @@ class RadioPlayer:
 
     def set_volume(self, volume: int):
         self._volume = max(0, min(100, volume))
-        self._ipc_set_property("volume", self._volume)
+        # Envoyer immédiatement si MPV est actif, sinon sera appliqué au prochain play()
+        if self._is_playing and os.path.exists(_MPV_IPC_SOCKET):
+            self._ipc_set_property("volume", self._volume)
+            log_event(f"Volume IPC → {self._volume}", level="debug")
+        else:
+            log_event(f"Volume sauvegardé → {self._volume} (pas de stream actif)", level="debug")
 
     def is_playing(self) -> bool:
         return self._is_playing
@@ -66,15 +71,12 @@ class RadioPlayer:
         return self._current_station
 
     def cleanup(self):
-        """Arrêt complet : IPC → terminate wrapper → pkill host → socket."""
         log_event("Player cleanup…")
         self._polling = False
 
-        # 1. Demander à MPV de quitter proprement via IPC
         self._ipc_command("quit")
         time.sleep(0.4)
 
-        # 2. Terminer tous les wrappers flatpak-spawn trackés
         with self._lock:
             for proc in list(self._all_processes):
                 if proc and proc.poll() is None:
@@ -89,10 +91,7 @@ class RadioPlayer:
             self._all_processes.clear()
             self._process = None
 
-        # 3. pkill côté host — cible le socket IPC (très spécifique)
         self._pkill_host()
-
-        # 4. Nettoyer le socket
         self._remove_socket()
 
     # ─────────────────────────────
@@ -118,8 +117,8 @@ class RadioPlayer:
             msg = json.dumps({"command": ["set_property", prop, value]}).encode() + b"\n"
             sock.sendall(msg)
             sock.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log_event(f"IPC set_property {prop} failed: {e}", level="debug")
 
     def _ipc_get_property(self, prop: str):
         try:
@@ -158,10 +157,8 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _stop_current(self):
-        """Arrête le process courant : IPC → terminate → pkill."""
         self._ipc_command("quit")
         time.sleep(0.3)
-
         if self._process and self._process.poll() is None:
             try:
                 self._process.terminate()
@@ -171,26 +168,17 @@ class RadioPlayer:
                     self._process.kill()
                 except Exception:
                     pass
-
         self._pkill_host()
         self._remove_socket()
         self._process = None
 
     def _pkill_host(self):
-        """Tue le MPV côté host en ciblant le socket IPC (spécifique à notre instance)."""
         try:
-            Updater.run_host(
-                ["pkill", "-f", _MPV_IPC_SOCKET],
-                quiet=True,
-            )
+            Updater.run_host(["pkill", "-f", _MPV_IPC_SOCKET], quiet=True)
         except Exception:
             pass
-        # Fallback sur le titre de fenêtre
         try:
-            Updater.run_host(
-                ["pkill", "-f", "BBS radiOO"],
-                quiet=True,
-            )
+            Updater.run_host(["pkill", "-f", "BBS radiOO"], quiet=True)
         except Exception:
             pass
 
@@ -211,7 +199,7 @@ class RadioPlayer:
             with self._lock:
                 self._all_processes.append(proc)
 
-            # Attendre que MPV crée le socket IPC (max 8 s)
+            # Attendre le socket IPC (max 8 s)
             deadline = time.monotonic() + 8.0
             while time.monotonic() < deadline:
                 if proc.poll() is not None:
@@ -223,6 +211,10 @@ class RadioPlayer:
                 if os.path.exists(_MPV_IPC_SOCKET):
                     break
                 time.sleep(0.1)
+
+            # Appliquer le volume courant via IPC (au cas où il aurait changé
+            # entre le lancement et la création du socket)
+            self._ipc_set_property("volume", self._volume)
 
             self._status(f"En écoute : {station.get('name', '')}")
             if self.on_station_change:
