@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import traceback
 
 import gi
 gi.require_version("Gtk", "4.0")
@@ -21,6 +22,15 @@ _SECTION_PARAMS = {
     "trending": {"hidebroken": "true", "order": "clicktrend", "reverse": "true", "limit": "80"},
     "popular":  {"hidebroken": "true", "order": "votes",      "reverse": "true", "limit": "80"},
 }
+
+_WEBKIT_SETTINGS = [
+    ("set_enable_javascript",                    True),
+    ("set_enable_html5_local_storage",           True),
+    ("set_enable_media",                         False),
+    ("set_media_playback_requires_user_gesture", True),
+    ("set_enable_webgl",                         False),
+    ("set_enable_accelerated_2d_canvas",         False),
+]
 
 
 # ─────────────────────────────
@@ -72,6 +82,15 @@ class RadiooApp(Gtk.Application):
     # ─────────────────────────────
 
     def on_activate(self, app):
+        try:
+            self._build_window(app)
+        except Exception:
+            err = traceback.format_exc()
+            log_event(f"ERREUR on_activate:\n{err}")
+            print(f"ERREUR on_activate:\n{err}")
+            self.quit()
+
+    def _build_window(self, app):
         if self._window_created:
             self.win.present()
             return
@@ -80,26 +99,29 @@ class RadiooApp(Gtk.Application):
         self.win = Gtk.ApplicationWindow(application=app)
         self.win.set_title("BBS radiOO")
         self.win.set_default_size(1160, 700)
-
-        # close-request : retourner True pour gérer le shutdown nous-mêmes
         self.win.connect("close-request", self._on_close_request)
 
         # ── WebKit bridge ──
+        # WebKit 6.0 : register_script_message_handler(name, world_name)
+        # world_name=None → world par défaut
         self.cm = WebKit.UserContentManager()
-        self.cm.register_script_message_handler("bbsradioo")
+        try:
+            self.cm.register_script_message_handler("bbsradioo", None)
+        except TypeError:
+            # Fallback WebKit < 6.0
+            self.cm.register_script_message_handler("bbsradioo")
+
         self.cm.connect("script-message-received::bbsradioo", self._on_js_message)
 
         # ── WebView ──
         self.webview = WebKit.WebView(user_content_manager=self.cm)
+
         ws = self.webview.get_settings()
-        ws.set_enable_javascript(True)
-        ws.set_enable_html5_local_storage(True)
-        ws.set_enable_media(False)
-        ws.set_media_playback_requires_user_gesture(True)
-        try:
-            ws.set_enable_webgl(False)
-        except Exception:
-            pass
+        for method, value in _WEBKIT_SETTINGS:
+            try:
+                getattr(ws, method)(value)
+            except Exception as e:
+                log_event(f"WebKit setting {method} indisponible: {e}", level="debug")
 
         self.webview.set_vexpand(True)
         self.webview.connect("load-changed", self._on_load_changed)
@@ -114,25 +136,23 @@ class RadiooApp(Gtk.Application):
         self.player.on_metadata_change = self._cb_metadata
 
         self.player.set_volume(self.settings.get("volume", 100))
+        log_event("Fenêtre créée, WebView chargée.")
 
     # ─────────────────────────────
     # Shutdown
     # ─────────────────────────────
 
     def _on_close_request(self, _win) -> bool:
-        """Intercepte la fermeture de fenêtre pour cleanup synchrone avant exit."""
         if self._shutting_down:
-            return False  # laisser GTK fermer
+            return False
         self._shutting_down = True
-        log_event("Shutdown requested.")
+        log_event("Shutdown.")
         try:
             self.player.cleanup()
         except Exception as exc:
             log_event(f"Cleanup error: {exc}")
-        # Sortie forcée — évite que des threads ou sources GLib
-        # empêchent le process de se terminer
         os._exit(0)
-        return True  # jamais atteint, mais stoppe la propagation GTK
+        return True
 
     # ─────────────────────────────
     # WebKit events
@@ -141,9 +161,14 @@ class RadiooApp(Gtk.Application):
     def _on_load_changed(self, webview, event):
         if event != WebKit.LoadEvent.FINISHED:
             return
+        log_event("Page chargée.")
         vol = self.settings.get("volume", 100)
         self._js(f"document.getElementById('vol').value={vol}; setVol({vol});")
         self._push_favorites()
+        # Charger la section par défaut au démarrage
+        threading.Thread(
+            target=self._fetch_section, args=("trending",), daemon=True
+        ).start()
 
     # ─────────────────────────────
     # Bridge : JS → Python
@@ -161,40 +186,30 @@ class RadiooApp(Gtk.Application):
 
         if action == "play":
             self._do_play(msg.get("station"))
-
         elif action == "stop":
             self.player.stop()
-
         elif action == "set_volume":
             vol = max(0, min(100, int(msg.get("volume", 100))))
             self.player.set_volume(vol)
             self.settings["volume"] = vol
             _save_settings(self.settings)
-
         elif action == "toggle_favorite":
             station = msg.get("station")
             if station:
                 self.store.toggle(station)
                 self._push_favorites()
-
         elif action == "load_genre":
             genre = msg.get("genre", "")
             if genre:
                 threading.Thread(
-                    target=self._fetch_genre,
-                    args=(genre,),
-                    daemon=True,
+                    target=self._fetch_genre, args=(genre,), daemon=True
                 ).start()
-
         elif action == "load_section":
             section = msg.get("section", "")
             if section:
                 threading.Thread(
-                    target=self._fetch_section,
-                    args=(section,),
-                    daemon=True,
+                    target=self._fetch_section, args=(section,), daemon=True
                 ).start()
-
         else:
             log_event(f"Action inconnue: {action}", level="debug")
 
@@ -204,42 +219,36 @@ class RadiooApp(Gtk.Application):
 
     def _do_play(self, station: dict):
         if not station or not station.get("stream_url"):
-            log_event(f"Pas de stream_url pour {station.get('name', '?') if station else '?'}", level="debug")
+            log_event(
+                f"Pas de stream_url pour {station.get('name','?') if station else '?'}",
+                level="debug",
+            )
             return
         self.player.play(station)
 
     def _fetch_genre(self, genre: str):
-        """Fusionne curated + SomaFM + RadioBrowser pour un genre donné."""
         try:
             theme_ids = [genre]
-            results = curated.get_stations_for_themes(theme_ids)
-            seen_ids = {s["id"] for s in results}
-
+            results   = curated.get_stations_for_themes(theme_ids)
+            seen_ids  = {s["id"] for s in results}
             for s in somafm.get_stations_for_themes(theme_ids, THEME_BY_ID):
                 if s["id"] not in seen_ids:
-                    seen_ids.add(s["id"])
-                    results.append(s)
-
+                    seen_ids.add(s["id"]); results.append(s)
             for s in radiobrowser.get_stations_for_themes(theme_ids, THEME_BY_ID):
                 if s["id"] not in seen_ids:
-                    seen_ids.add(s["id"])
-                    results.append(s)
-
+                    seen_ids.add(s["id"]); results.append(s)
         except Exception as exc:
             log_event(f"Erreur fetch genre {genre}: {exc}")
             results = []
-
         GLib.idle_add(self._push_stations, results)
 
     def _fetch_section(self, section: str):
-        """Sections En ce moment / Top stations — RadioBrowser uniquement."""
         params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["popular"])
         try:
             raw = radiobrowser._get("/stations", params)
         except Exception as exc:
             log_event(f"Erreur fetch section {section}: {exc}")
             raw = []
-
         seen, stations = set(), []
         for s in raw:
             uid = s.get("stationuuid", "")
@@ -249,7 +258,6 @@ class RadiooApp(Gtk.Application):
             d = radiobrowser._station_to_dict(s)
             if d:
                 stations.append(d)
-
         GLib.idle_add(self._push_stations, stations)
 
     # ─────────────────────────────
@@ -265,7 +273,7 @@ class RadiooApp(Gtk.Application):
         return False
 
     def _push_favorites(self):
-        favs = self.store.all()
+        favs    = self.store.all()
         payload = json.dumps(favs, ensure_ascii=False)
         self._js(f"window.onFavoritesLoaded({payload})")
 
