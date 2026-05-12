@@ -22,39 +22,30 @@
   --accent-d: rgba(225,29,46,0.12);
   --accent-h: #ff3344;
   --gold: #f0b030;
+  --green: #22c55e;
   --font: 'Syne', sans-serif;
   --mono: 'JetBrains Mono', monospace;
 }
 
 html, body { height: 100%; background: var(--bg); color: var(--t1); font-family: var(--font); font-size: 14px; overflow: hidden; }
-
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 2px; }
-
 .app { display: flex; height: 100vh; }
 
 /* ═══ SIDEBAR ═══ */
 .sidebar {
-  width: 208px; min-width: 208px;
-  background: var(--bg-2); border-right: 1px solid var(--border);
+  width: 208px; min-width: 208px; background: var(--bg-2);
+  border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   overflow-y: auto; overflow-x: hidden; padding-bottom: 16px;
 }
 .sidebar-logo {
-  padding: 14px 14px 13px;
+  padding: 16px 14px 13px;
   display: flex; align-items: center; gap: 11px;
   border-bottom: 1px solid var(--border); margin-bottom: 8px;
 }
-
-/*
-  Logo radar — fidèle à l'image fournie :
-  fond sombre arrondi, 3 cercles concentriques bien lisibles,
-  sweep rouge épais partant du centre, blip/cible au bout.
-  Pas d'antenne ni de barre — juste le radar et le rouge.
-*/
 .logo-svg { width: 38px; height: 38px; flex-shrink: 0; }
-
 .logo-text { font-size: 15px; font-weight: 800; letter-spacing: 0.3px; color: var(--t1); line-height: 1; }
 .logo-text em { font-style: normal; color: var(--accent); }
 
@@ -73,11 +64,14 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
 .nav-item.active { background: var(--accent-d); color: var(--accent); }
 .nav-icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.6; }
 .nav-item.active .nav-icon { opacity: 1; }
+.nav-item.adfree.active { background: rgba(34,197,94,0.12); color: var(--green); }
+.nav-item.adfree:hover { color: var(--green); }
 .nav-badge {
   margin-left: auto; background: var(--bg-4); color: var(--t2);
   font-family: var(--mono); font-size: 9.5px; padding: 2px 6px; border-radius: 20px;
 }
 .nav-item.active .nav-badge { background: var(--accent); color: #fff; }
+.nav-item.adfree.active .nav-badge { background: var(--green); color: #000; }
 .genre-emoji { font-size: 13px; flex-shrink: 0; line-height: 1; }
 
 /* ═══ MAIN ═══ */
@@ -90,8 +84,7 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
 .main-title { font-size: 19px; font-weight: 800; color: var(--t1); }
 .main-count { font-size: 11px; color: var(--t3); font-family: var(--mono); margin-top: 2px; }
 .search-wrap {
-  margin-left: auto;
-  display: flex; align-items: center;
+  margin-left: auto; display: flex; align-items: center;
   background: var(--bg-3); border: 1px solid var(--border);
   border-radius: 8px; padding: 6px 11px; gap: 7px; transition: border-color 0.15s;
 }
@@ -115,16 +108,10 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
 }
 .station-card:hover { background: var(--bg-3); border-color: var(--border-h); transform: translateY(-1px); }
 .station-card.playing { border-color: var(--accent); background: var(--accent-d); }
-.station-card.playing::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent);
-}
+.station-card.playing::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--accent); }
 .station-logo { width: 50px; height: 50px; border-radius: 8px; flex-shrink: 0; overflow: hidden; position: relative; }
 .station-logo img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; z-index: 1; }
-.station-logo .logo-gen {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 15px; font-weight: 800; color: rgba(255,255,255,0.88); letter-spacing: -0.5px;
-}
+.station-logo .logo-gen { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: rgba(255,255,255,0.88); letter-spacing: -0.5px; }
 .station-info { flex: 1; min-width: 0; }
 .station-name { font-size: 13px; font-weight: 700; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
 .station-desc { font-size: 11px; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -154,28 +141,63 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
 
 /* ═══ PLAYER ═══ */
 .player { width: 258px; min-width: 258px; background: var(--bg-2); border-left: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
-.artwork { position: relative; height: 220px; flex-shrink: 0; overflow: hidden; background: #0d0d0d; display: flex; align-items: center; justify-content: center; }
+
+.artwork { position: relative; height: 210px; flex-shrink: 0; overflow: hidden; background: #0d0d0d; display: flex; align-items: center; justify-content: center; }
 .artwork-blur { position: absolute; inset: -30px; background-size: cover; background-position: center; filter: blur(28px) brightness(0.55) saturate(2.2); opacity: 0; transition: opacity 0.7s; pointer-events: none; }
 .artwork-blur.on { opacity: 1; }
 .artwork-vignette { position: absolute; inset: 0; z-index: 1; background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%); pointer-events: none; }
 .artwork-idle { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 0.22; }
 .artwork-idle span { font-size: 10px; font-family: var(--mono); }
-.artwork-real { position: relative; z-index: 2; width: 116px; height: 116px; border-radius: 14px; overflow: hidden; display: none; align-items: center; justify-content: center; box-shadow: 0 20px 56px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06); }
+.artwork-real { position: relative; z-index: 2; width: 110px; height: 110px; border-radius: 14px; overflow: hidden; display: none; align-items: center; justify-content: center; box-shadow: 0 20px 56px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.06); }
 .artwork-real img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.artwork-gen { position: relative; z-index: 2; width: 116px; height: 116px; border-radius: 14px; display: none; align-items: center; justify-content: center; flex-direction: column; gap: 2px; overflow: hidden; box-shadow: 0 20px 56px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08); }
-.artwork-gen-initials { font-size: 40px; font-weight: 800; color: rgba(255,255,255,0.92); letter-spacing: -2px; line-height: 1; text-shadow: 0 2px 12px rgba(0,0,0,0.5); position: relative; z-index: 1; }
+.artwork-gen { position: relative; z-index: 2; width: 110px; height: 110px; border-radius: 14px; display: none; align-items: center; justify-content: center; flex-direction: column; overflow: hidden; box-shadow: 0 20px 56px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.08); }
+.artwork-gen-initials { font-size: 38px; font-weight: 800; color: rgba(255,255,255,0.92); letter-spacing: -2px; line-height: 1; text-shadow: 0 2px 12px rgba(0,0,0,0.5); position: relative; z-index: 1; }
 .artwork-gen-deco { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.player-info { padding: 14px 15px 8px; flex-shrink: 0; }
-.player-name { font-size: 14px; font-weight: 700; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+
+/* Player info — enrichi */
+.player-info { padding: 12px 15px 6px; flex-shrink: 0; }
+.player-name { font-size: 13.5px; font-weight: 700; color: var(--t1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
 .player-name.idle { font-size: 12px; color: var(--t3); font-weight: 400; }
-.player-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 5px; min-height: 18px; }
+
+.player-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; min-height: 18px; }
 .badge { font-size: 9.5px; font-family: var(--mono); font-weight: 500; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap; }
 .badge-bitrate { background: rgba(225,29,46,0.15); color: #ff6070; }
 .badge-codec   { background: rgba(255,255,255,0.07); color: var(--t2); }
 .badge-source  { background: rgba(255,255,255,0.05); color: var(--t3); }
 .badge-country { background: rgba(255,255,255,0.05); color: var(--t3); }
+.badge-adfree  { background: rgba(34,197,94,0.15); color: var(--green); }
+
+/* Description de la station */
+.player-description {
+  font-size: 11px; color: var(--t2); line-height: 1.5;
+  margin-bottom: 6px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Tags */
+.player-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.player-tag {
+  font-size: 9px; font-family: var(--mono);
+  padding: 2px 5px; border-radius: 3px;
+  background: var(--bg-4); color: var(--t3);
+  border: 1px solid var(--border);
+}
+
+/* Homepage link */
+.player-homepage {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: var(--t3); font-family: var(--mono);
+  text-decoration: none; transition: color 0.15s;
+  margin-bottom: 4px;
+  cursor: pointer;
+  background: none; border: none; padding: 0;
+}
+.player-homepage:hover { color: var(--accent); }
+
 .player-track { font-size: 11.5px; color: var(--accent); font-family: var(--mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 15px; }
-.bars { display: none; align-items: flex-end; gap: 2.5px; height: 13px; margin-top: 7px; }
+.bars { display: none; align-items: flex-end; gap: 2.5px; height: 13px; margin-top: 6px; }
 .bars.on { display: flex; }
 .bar { width: 3px; background: var(--accent); border-radius: 2px; animation: bounce 0.9s ease-in-out infinite; }
 .bar:nth-child(1) { height: 8px;  animation-delay: 0s;    }
@@ -183,21 +205,25 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
 .bar:nth-child(3) { height: 6px;  animation-delay: 0.36s; }
 .bar:nth-child(4) { height: 10px; animation-delay: 0.09s; }
 @keyframes bounce { 0%,100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
-.controls { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 4px 15px 12px; flex-shrink: 0; }
+
+.controls { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 4px 15px 10px; flex-shrink: 0; }
 .ctrl { border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; background: var(--bg-3); color: var(--t2); border-radius: 50%; }
 .ctrl:hover { border-color: var(--border-h); color: var(--t1); }
 .ctrl.sm { width: 38px; height: 38px; }
 .ctrl.lg { width: 52px; height: 52px; background: var(--accent); border-color: var(--accent); color: #fff; }
 .ctrl.lg:hover { background: var(--accent-h); border-color: var(--accent-h); }
 .ctrl.gold { color: var(--gold); border-color: rgba(240,176,48,0.35); }
-.vol-row { display: flex; align-items: center; gap: 8px; padding: 0 15px 12px; flex-shrink: 0; }
+
+.vol-row { display: flex; align-items: center; gap: 8px; padding: 0 15px 10px; flex-shrink: 0; }
 .vol-icon { color: var(--t3); flex-shrink: 0; }
 .vol-slider { flex: 1; -webkit-appearance: none; height: 3px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--v, 100%), var(--bg-4) var(--v, 100%)); outline: none; }
 .vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; background: var(--t1); border-radius: 50%; cursor: pointer; transition: background 0.15s; }
 .vol-slider::-webkit-slider-thumb:hover { background: var(--accent); }
 .vol-pct { font-size: 10.5px; color: var(--t3); font-family: var(--mono); min-width: 32px; text-align: right; }
+
 .divider { height: 1px; background: var(--border); margin: 0 15px; flex-shrink: 0; }
-.recent-panel { flex: 1; overflow-y: auto; padding: 12px 15px; display: none; }
+
+.recent-panel { flex: 1; overflow-y: auto; padding: 10px 15px; display: none; }
 .recent-label { font-size: 9.5px; font-weight: 700; color: var(--t3); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px; }
 .track-item { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--border); }
 .track-item:last-child { border: none; }
@@ -212,27 +238,14 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="sidebar-logo">
-      <!--
-        Logo radar — 3 cercles concentriques bien visibles,
-        sweep rouge épais du centre vers le blip,
-        point central rouge, cible au bout.
-        Fond sombre #1c2026, radius 12.
-      -->
       <svg class="logo-svg" viewBox="0 0 38 38" xmlns="http://www.w3.org/2000/svg">
         <rect width="38" height="38" rx="9" fill="#1c2026"/>
-        <!-- Cercle externe -->
         <circle cx="19" cy="21" r="14" fill="none" stroke="#c8d0d8" stroke-width="0.9" opacity="0.35"/>
-        <!-- Cercle médian -->
         <circle cx="19" cy="21" r="9"  fill="none" stroke="#c8d0d8" stroke-width="1"   opacity="0.6"/>
-        <!-- Cercle interne -->
         <circle cx="19" cy="21" r="4.5" fill="none" stroke="#c8d0d8" stroke-width="1.2" opacity="0.9"/>
-        <!-- Sweep rouge — du centre vers haut-droit -->
-        <line x1="19" y1="21" x2="30" y2="9"
-              stroke="#e11d2e" stroke-width="2" stroke-linecap="round"/>
-        <!-- Blip au bout du sweep -->
+        <line x1="19" y1="21" x2="30" y2="9" stroke="#e11d2e" stroke-width="2" stroke-linecap="round"/>
         <circle cx="29.5" cy="9.5" r="2.2" fill="#e8e8e8"/>
         <circle cx="29.5" cy="9.5" r="1"   fill="#e11d2e"/>
-        <!-- Point central -->
         <circle cx="19" cy="21" r="2.5" fill="#e11d2e"/>
         <circle cx="19" cy="21" r="1"   fill="#1c2026"/>
       </svg>
@@ -248,6 +261,10 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
       <div class="nav-item" onclick="setSection(this,'Top stations','popular','section')">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.84 3.73 4.12.6-2.98 2.9.7 4.1L8 10.77 4.32 12.83l.7-4.1L2.04 5.83l4.12-.6z"/></svg>
         Top stations
+      </div>
+      <div class="nav-item adfree" onclick="setSection(this,'Sans pub','adfree','section')">
+        <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L2 4v4c0 3.5 2.5 6.5 6 7.5C12 14.5 14 11.5 14 8V4L8 1z"/></svg>
+        Sans pub
       </div>
     </div>
 
@@ -282,23 +299,14 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
       </div>
       <div class="search-wrap">
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><line x1="10.5" y1="10.5" x2="14" y2="14"/></svg>
-        <input type="text" id="search-input" placeholder="Rechercher une station..." oninput="filterStations(this.value)">
+        <input type="text" id="search-input" placeholder="Rechercher..." oninput="filterStations(this.value)">
       </div>
     </div>
-
     <div class="main-content">
-      <div class="loading-state" id="loading" style="display:none">
-        <div class="spinner"></div>
-        <span>Chargement des stations...</span>
-      </div>
-      <div class="empty-state" id="empty">
-        <div class="empty-icon">📡</div>
-        <div class="empty-head">Aucune station</div>
-        <div class="empty-sub">Sélectionne un genre ou une section</div>
-      </div>
+      <div class="loading-state" id="loading" style="display:none"><div class="spinner"></div><span>Chargement...</span></div>
+      <div class="empty-state" id="empty"><div class="empty-icon">📡</div><div class="empty-head">Aucune station</div><div class="empty-sub">Sélectionne un genre ou une section</div></div>
       <div class="station-grid" id="grid" style="display:none"></div>
     </div>
-
     <div class="status-bar" id="status">Prêt.</div>
   </main>
 
@@ -307,35 +315,31 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
     <div class="artwork">
       <div class="artwork-blur" id="artwork-blur"></div>
       <div class="artwork-vignette"></div>
-
-      <!-- Idle : même radar simplifié -->
       <div class="artwork-idle" id="artwork-idle">
-        <svg width="60" height="60" viewBox="0 0 38 38">
+        <svg width="56" height="56" viewBox="0 0 38 38">
           <rect width="38" height="38" rx="9" fill="#1c2026"/>
-          <circle cx="19" cy="21" r="14"  fill="none" stroke="#c8d0d8" stroke-width="0.9" opacity="0.2"/>
-          <circle cx="19" cy="21" r="9"   fill="none" stroke="#c8d0d8" stroke-width="1"   opacity="0.35"/>
-          <circle cx="19" cy="21" r="4.5" fill="none" stroke="#c8d0d8" stroke-width="1.2" opacity="0.55"/>
-          <line x1="19" y1="21" x2="30" y2="9" stroke="#e11d2e" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-          <circle cx="29.5" cy="9.5" r="2.2" fill="#e8e8e8" opacity="0.4"/>
-          <circle cx="29.5" cy="9.5" r="1"   fill="#e11d2e" opacity="0.5"/>
-          <circle cx="19" cy="21" r="2.5" fill="#e11d2e" opacity="0.5"/>
+          <circle cx="19" cy="21" r="14"  fill="none" stroke="#c8d0d8" stroke-width="0.9" opacity="0.18"/>
+          <circle cx="19" cy="21" r="9"   fill="none" stroke="#c8d0d8" stroke-width="1"   opacity="0.32"/>
+          <circle cx="19" cy="21" r="4.5" fill="none" stroke="#c8d0d8" stroke-width="1.2" opacity="0.5"/>
+          <line x1="19" y1="21" x2="30" y2="9" stroke="#e11d2e" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+          <circle cx="29.5" cy="9.5" r="2.2" fill="#e8e8e8" opacity="0.35"/>
+          <circle cx="29.5" cy="9.5" r="1"   fill="#e11d2e" opacity="0.45"/>
+          <circle cx="19" cy="21" r="2.5" fill="#e11d2e" opacity="0.45"/>
           <circle cx="19" cy="21" r="1"   fill="#1c2026"/>
         </svg>
         <span>aucune station</span>
       </div>
-
       <div class="artwork-real" id="artwork-real">
         <img id="artwork-img" src="" alt="" onload="onArtworkLoaded()" onerror="onArtworkError()">
       </div>
-
       <div class="artwork-gen" id="artwork-gen">
         <div class="artwork-gen-deco">
-          <svg width="116" height="116" viewBox="0 0 116 116" fill="none">
-            <circle cx="58" cy="68" r="48" stroke="white" stroke-width="1" opacity="0.1"/>
-            <circle cx="58" cy="68" r="34" stroke="white" stroke-width="1" opacity="0.16"/>
-            <circle cx="58" cy="68" r="20" stroke="white" stroke-width="1" opacity="0.22"/>
-            <line x1="58" y1="68" x2="92" y2="34" stroke="white" stroke-width="1.5" opacity="0.25" stroke-linecap="round"/>
-            <circle cx="90" cy="36" r="3" fill="white" opacity="0.3"/>
+          <svg width="110" height="110" viewBox="0 0 110 110" fill="none">
+            <circle cx="55" cy="65" r="46" stroke="white" stroke-width="1" opacity="0.1"/>
+            <circle cx="55" cy="65" r="32" stroke="white" stroke-width="1" opacity="0.16"/>
+            <circle cx="55" cy="65" r="18" stroke="white" stroke-width="1" opacity="0.22"/>
+            <line x1="55" y1="65" x2="86" y2="34" stroke="white" stroke-width="1.5" opacity="0.22" stroke-linecap="round"/>
+            <circle cx="84" cy="36" r="3" fill="white" opacity="0.28"/>
           </svg>
         </div>
         <div class="artwork-gen-initials" id="artwork-gen-initials"></div>
@@ -345,6 +349,12 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
     <div class="player-info">
       <div class="player-name idle" id="player-name">Aucune station sélectionnée</div>
       <div class="player-badges" id="player-badges"></div>
+      <div class="player-description" id="player-description"></div>
+      <div class="player-tags" id="player-tags"></div>
+      <button class="player-homepage" id="player-homepage" style="display:none" onclick="openHomepage()">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M8 2c-2 2-2 10 0 12M8 2c2 2 2 10 0 12M2 8h12"/></svg>
+        <span id="player-homepage-text"></span>
+      </button>
       <div class="player-track" id="player-track"></div>
       <div class="bars" id="bars">
         <div class="bar"></div><div class="bar"></div>
@@ -358,18 +368,15 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
           <path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/>
         </svg>
       </button>
-      <button class="ctrl lg" id="btn-play" title="Lecture / Stop" onclick="togglePlay()">
+      <button class="ctrl lg" id="btn-play" onclick="togglePlay()">
         <svg id="icon-play" width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5l8 4.5-8 4.5V3.5z"/></svg>
         <svg id="icon-stop" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="display:none"><rect x="4" y="4" width="8" height="8" rx="1"/></svg>
       </button>
     </div>
 
     <div class="vol-row">
-      <svg class="vol-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M3.5 6H1.5v4H3.5L7 13V3L3.5 6zm7-.4c-.6-.6-1-.6-1-.6V7s.4 0 .9.5A3 3 0 0 1 12 10a3 3 0 0 1-1.6 2.5c-.5.4-.9.5-.9.5v1s.4 0 1-.6C11.8 12.6 13 11.4 13 10s-1.2-2.6-2.5-4.4z"/>
-      </svg>
-      <input type="range" class="vol-slider" id="vol" min="0" max="100" value="100"
-             style="--v:100%" oninput="setVol(this.value)">
+      <svg class="vol-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3.5 6H1.5v4H3.5L7 13V3L3.5 6zm7-.4c-.6-.6-1-.6-1-.6V7s.4 0 .9.5A3 3 0 0 1 12 10a3 3 0 0 1-1.6 2.5c-.5.4-.9.5-.9.5v1s.4 0 1-.6C11.8 12.6 13 11.4 13 10s-1.2-2.6-2.5-4.4z"/></svg>
+      <input type="range" class="vol-slider" id="vol" min="0" max="100" value="100" style="--v:100%" oninput="setVol(this.value)">
       <span class="vol-pct" id="vol-pct">100%</span>
     </div>
 
@@ -385,6 +392,7 @@ html, body { height: 100%; background: var(--bg); color: var(--t1); font-family:
 <script>
 let curStation = null, playing = false;
 let favorites = {}, recentTracks = [], allStations = [], filtered = [];
+let curHomepage = '';
 
 const PALETTES = [
   ['#1a1060','#4b0082'],['#0a2a1a','#0d5c2e'],['#2a0a0a','#7c1515'],
@@ -458,8 +466,7 @@ function renderGrid(list){
     const isNow=curStation&&curStation.id===st.id&&playing;
     const[c1,c2]=getPalette(st.name);
     const logoHTML=st.favicon
-      ?`<img src="${st.favicon}" alt="${init}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-        <div class="logo-gen" style="display:none;background:linear-gradient(135deg,${c1},${c2})">${init}</div>`
+      ?`<img src="${st.favicon}" alt="${init}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="logo-gen" style="display:none;background:linear-gradient(135deg,${c1},${c2})">${init}</div>`
       :`<div class="logo-gen" style="background:linear-gradient(135deg,${c1},${c2})">${init}</div>`;
     const card=document.createElement('div');
     card.className='station-card'+(isNow?' playing':'');
@@ -528,17 +535,53 @@ function setVol(v){
   bridge.send({action:'set_volume',volume:v});
 }
 
+function openHomepage(){
+  if(curHomepage) window.open(curHomepage,'_blank');
+}
+
 function renderPlayer(st){
   const nameEl=document.getElementById('player-name');
   nameEl.textContent=st.name||''; nameEl.classList.remove('idle');
 
+  // Badges
   const badgesEl=document.getElementById('player-badges');
   badgesEl.innerHTML='';
   if(st.bitrate&&st.bitrate>0) badgesEl.innerHTML+=`<span class="badge badge-bitrate">${st.bitrate} kbps</span>`;
-  if(st.codec)                 badgesEl.innerHTML+=`<span class="badge badge-codec">${st.codec.toUpperCase()}</span>`;
-  if(st.country)               badgesEl.innerHTML+=`<span class="badge badge-country">${st.country}</span>`;
+  if(st.codec) badgesEl.innerHTML+=`<span class="badge badge-codec">${st.codec.toUpperCase()}</span>`;
+  if(st.country) badgesEl.innerHTML+=`<span class="badge badge-country">${st.country}</span>`;
   const srcLabel={somafm:'SomaFM',curated:'Curated',radiobrowser:'RadioBrowser'};
-  if(st.source&&srcLabel[st.source]) badgesEl.innerHTML+=`<span class="badge badge-source">${srcLabel[st.source]}</span>`;
+  if(st.source==='somafm'||st.source==='curated')
+    badgesEl.innerHTML+=`<span class="badge badge-adfree">✓ sans pub</span>`;
+  else if(st.source&&srcLabel[st.source])
+    badgesEl.innerHTML+=`<span class="badge badge-source">${srcLabel[st.source]}</span>`;
+
+  // Description
+  const descEl=document.getElementById('player-description');
+  const desc=(st.description||'').replace(/,/g,' · ').trim();
+  descEl.textContent=desc;
+  descEl.style.display=desc?'block':'none';
+
+  // Tags (max 6)
+  const tagsEl=document.getElementById('player-tags');
+  const tags=Array.isArray(st.tags)?st.tags.slice(0,6):[];
+  tagsEl.innerHTML=tags.map(t=>`<span class="player-tag">${t}</span>`).join('');
+  tagsEl.style.display=tags.length?'flex':'none';
+
+  // Homepage
+  curHomepage=st.homepage||'';
+  const homepageEl=document.getElementById('player-homepage');
+  const homepageText=document.getElementById('player-homepage-text');
+  if(curHomepage){
+    homepageEl.style.display='inline-flex';
+    try{
+      const url=new URL(curHomepage);
+      homepageText.textContent=url.hostname.replace('www.','');
+    }catch{
+      homepageText.textContent=curHomepage.substring(0,30);
+    }
+  } else {
+    homepageEl.style.display='none';
+  }
 
   setPlayIcon(true);
   document.getElementById('bars').classList.add('on');
@@ -599,10 +642,10 @@ function updateFavIcon(){
 
 function highlightCard(id){
   document.querySelectorAll('.station-card').forEach(c=>{
-    const active=c.dataset.id===id;
-    c.classList.toggle('playing',active);
+    const a=c.dataset.id===id;
+    c.classList.toggle('playing',a);
     const btn=c.querySelector('.play-btn');
-    if(btn) btn.innerHTML=active
+    if(btn) btn.innerHTML=a
       ?'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10" rx="1"/></svg>'
       :'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>';
   });

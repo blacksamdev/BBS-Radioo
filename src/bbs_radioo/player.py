@@ -9,8 +9,8 @@ from gi.repository import GLib
 from bbs_radioo.logging_utils import log_event
 from bbs_radioo.updater import Updater
 
-# XDG_RUNTIME_DIR (/run/user/1000) est partagé entre le Flatpak et le host —
-# contrairement à /tmp qui est isolé dans le sandbox.
+# Socket dans XDG_RUNTIME_DIR (/run/user/1000) — partagé host/Flatpak en théorie.
+# En pratique on utilise flatpak-spawn pour les commandes IPC depuis le host.
 _MPV_IPC_SOCKET = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
     "bbs-radioo-mpv.sock"
@@ -63,9 +63,9 @@ class RadioPlayer:
 
     def set_volume(self, volume: int):
         self._volume = max(0, min(100, volume))
-        if self._is_playing and os.path.exists(_MPV_IPC_SOCKET):
+        if self._is_playing:
             self._ipc_set_property("volume", self._volume)
-            log_event(f"Volume IPC → {self._volume}", level="debug")
+            log_event(f"Volume → {self._volume}", level="debug")
         else:
             log_event(f"Volume sauvegardé → {self._volume}", level="debug")
 
@@ -97,51 +97,62 @@ class RadioPlayer:
         self._remove_socket()
 
     # ─────────────────────────────
-    # IPC
+    # IPC — exécuté côté HOST via flatpak-spawn
+    # Le socket MPV est sur le host. Depuis l'intérieur du Flatpak,
+    # on ne peut pas s'y connecter directement (isolation /tmp ou runtime).
+    # On passe par flatpak-spawn --host python3 -c "..." pour accéder
+    # au socket depuis le même contexte que MPV.
     # ─────────────────────────────
 
-    def _ipc_command(self, *args):
+    def _ipc_send_via_host(self, payload: str):
+        """Envoie un message JSON IPC au socket MPV en passant par le host."""
+        escaped = payload.replace("'", "\\'")
+        script = (
+            f"import socket,sys;"
+            f"s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
+            f"s.settimeout(1.0);"
+            f"s.connect('{_MPV_IPC_SOCKET}');"
+            f"s.sendall(b'{escaped}\\n');"
+            f"s.close()"
+        )
         try:
-            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-            sock.settimeout(1.0)
-            sock.connect(_MPV_IPC_SOCKET)
-            msg = json.dumps({"command": list(args)}).encode() + b"\n"
-            sock.sendall(msg)
-            sock.close()
-        except Exception:
-            pass
+            Updater.run_host(["python3", "-c", script], quiet=True)
+        except Exception as e:
+            log_event(f"IPC host send failed: {e}", level="debug")
+
+    def _ipc_command(self, *args):
+        payload = json.dumps({"command": list(args)})
+        self._ipc_send_via_host(payload)
 
     def _ipc_set_property(self, prop: str, value):
-        try:
-            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-            sock.settimeout(1.0)
-            sock.connect(_MPV_IPC_SOCKET)
-            msg = json.dumps({"command": ["set_property", prop, value]}).encode() + b"\n"
-            sock.sendall(msg)
-            sock.close()
-        except Exception as e:
-            log_event(f"IPC set_property {prop} failed: {e}", level="debug")
+        payload = json.dumps({"command": ["set_property", prop, value]})
+        self._ipc_send_via_host(payload)
 
     def _ipc_get_property(self, prop: str):
+        """Lit une propriété MPV via le host — retourne la valeur ou None."""
+        script = (
+            f"import socket,json,sys;"
+            f"s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
+            f"s.settimeout(1.0);"
+            f"s.connect('{_MPV_IPC_SOCKET}');"
+            f"msg=json.dumps({{'command':['get_property','{prop}']}}).encode()+b'\\n';"
+            f"s.sendall(msg);"
+            f"buf=b'';"
+            f"[buf:=buf+c for c in iter(lambda:s.recv(256),b'') if b'\\n' not in buf];"
+            f"s.close();"
+            f"resp=json.loads(buf.split(b'\\n')[0]);"
+            f"print(resp.get('data','') if resp.get('error')=='success' else '',end='')"
+        )
         try:
-            sock = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-            sock.settimeout(1.0)
-            sock.connect(_MPV_IPC_SOCKET)
-            msg = json.dumps({"command": ["get_property", prop]}).encode() + b"\n"
-            sock.sendall(msg)
-            buf = b""
-            while b"\n" not in buf:
-                chunk = sock.recv(1024)
-                if not chunk:
-                    break
-                buf += chunk
-            sock.close()
-            resp = json.loads(buf.split(b"\n")[0])
-            if resp.get("error") == "success":
-                return resp.get("data")
+            import subprocess
+            result = subprocess.run(
+                ["flatpak-spawn", "--host", "python3", "-c", script],
+                capture_output=True, text=True, timeout=3
+            )
+            val = result.stdout.strip()
+            return val if val else None
         except Exception:
-            pass
-        return None
+            return None
 
     def _poll_metadata(self):
         self._polling = True
@@ -161,7 +172,6 @@ class RadioPlayer:
     def _stop_current(self):
         self._ipc_command("quit")
         time.sleep(0.3)
-        # Capturer dans une variable locale pour éviter la race condition NoneType
         proc = self._process
         if proc and proc.poll() is None:
             try:
@@ -188,6 +198,11 @@ class RadioPlayer:
 
     def _remove_socket(self):
         try:
+            # Supprimer le socket depuis le host
+            Updater.run_host(["rm", "-f", _MPV_IPC_SOCKET], quiet=True)
+        except Exception:
+            pass
+        try:
             os.remove(_MPV_IPC_SOCKET)
         except OSError:
             pass
@@ -203,7 +218,8 @@ class RadioPlayer:
             with self._lock:
                 self._all_processes.append(proc)
 
-            # Attendre le socket IPC (max 8 s)
+            # Attendre que MPV crée le socket IPC côté host (max 8 s)
+            # On vérifie via flatpak-spawn pour ne pas souffrir de l'isolation
             deadline = time.monotonic() + 8.0
             socket_found = False
             while time.monotonic() < deadline:
@@ -213,16 +229,24 @@ class RadioPlayer:
                     with self._lock:
                         self._is_playing = False
                     return
-                if os.path.exists(_MPV_IPC_SOCKET):
+                # Vérifier l'existence du socket côté host
+                result = Updater.run_host(
+                    ["test", "-S", _MPV_IPC_SOCKET], quiet=True
+                )
+                if result.returncode == 0:
                     socket_found = True
                     break
-                time.sleep(0.1)
+                time.sleep(0.15)
 
             if not socket_found:
-                log_event(f"Socket IPC introuvable pour {station.get('name')} — IPC désactivé", level="debug")
+                log_event(
+                    f"Socket IPC introuvable (timeout) pour {station.get('name')}",
+                    level="debug"
+                )
             else:
-                # Appliquer le volume courant dès que le socket est prêt
+                # Appliquer le volume dès que le socket est prêt
                 self._ipc_set_property("volume", self._volume)
+                log_event(f"Socket IPC trouvé — volume={self._volume}", level="debug")
 
             self._status(f"En écoute : {station.get('name', '')}")
             if self.on_station_change:

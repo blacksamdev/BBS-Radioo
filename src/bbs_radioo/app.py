@@ -29,7 +29,6 @@ _WEBKIT_SETTINGS = [
     ("set_enable_media",                         False),
     ("set_media_playback_requires_user_gesture", True),
     ("set_enable_webgl",                         False),
-    ("set_enable_accelerated_2d_canvas",         False),
 ]
 
 
@@ -77,10 +76,6 @@ class RadiooApp(Gtk.Application):
         self._window_created = False
         self._shutting_down = False
 
-    # ─────────────────────────────
-    # Activation
-    # ─────────────────────────────
-
     def on_activate(self, app):
         try:
             self._build_window(app)
@@ -101,27 +96,20 @@ class RadiooApp(Gtk.Application):
         self.win.set_default_size(1160, 700)
         self.win.connect("close-request", self._on_close_request)
 
-        # ── WebKit bridge ──
-        # WebKit 6.0 : register_script_message_handler(name, world_name)
-        # world_name=None → world par défaut
         self.cm = WebKit.UserContentManager()
         try:
             self.cm.register_script_message_handler("bbsradioo", None)
         except TypeError:
-            # Fallback WebKit < 6.0
             self.cm.register_script_message_handler("bbsradioo")
-
         self.cm.connect("script-message-received::bbsradioo", self._on_js_message)
 
-        # ── WebView ──
         self.webview = WebKit.WebView(user_content_manager=self.cm)
-
         ws = self.webview.get_settings()
         for method, value in _WEBKIT_SETTINGS:
             try:
                 getattr(ws, method)(value)
             except Exception as e:
-                log_event(f"WebKit setting {method} indisponible: {e}", level="debug")
+                log_event(f"WebKit setting {method}: {e}", level="debug")
 
         self.webview.set_vexpand(True)
         self.webview.connect("load-changed", self._on_load_changed)
@@ -130,11 +118,9 @@ class RadiooApp(Gtk.Application):
         self.win.set_child(self.webview)
         self.win.present()
 
-        # ── Player callbacks ──
         self.player.on_status_change   = self._cb_status
         self.player.on_station_change  = self._cb_station
         self.player.on_metadata_change = self._cb_metadata
-
         self.player.set_volume(self.settings.get("volume", 100))
         log_event("Fenêtre créée, WebView chargée.")
 
@@ -165,10 +151,8 @@ class RadiooApp(Gtk.Application):
         vol = self.settings.get("volume", 100)
         self._js(f"document.getElementById('vol').value={vol}; setVol({vol});")
         self._push_favorites()
-        # Charger la section par défaut au démarrage
-        threading.Thread(
-            target=self._fetch_section, args=("trending",), daemon=True
-        ).start()
+        # Section par défaut au démarrage
+        threading.Thread(target=self._fetch_section, args=("trending",), daemon=True).start()
 
     # ─────────────────────────────
     # Bridge : JS → Python
@@ -178,7 +162,6 @@ class RadiooApp(Gtk.Application):
         try:
             msg = json.loads(message.to_string())
         except Exception:
-            log_event(f"JS message parse error: {message.to_string()}", level="debug")
             return
 
         action = msg.get("action", "")
@@ -201,28 +184,20 @@ class RadiooApp(Gtk.Application):
         elif action == "load_genre":
             genre = msg.get("genre", "")
             if genre:
-                threading.Thread(
-                    target=self._fetch_genre, args=(genre,), daemon=True
-                ).start()
+                threading.Thread(target=self._fetch_genre, args=(genre,), daemon=True).start()
         elif action == "load_section":
             section = msg.get("section", "")
             if section:
-                threading.Thread(
-                    target=self._fetch_section, args=(section,), daemon=True
-                ).start()
+                threading.Thread(target=self._fetch_section, args=(section,), daemon=True).start()
         else:
             log_event(f"Action inconnue: {action}", level="debug")
 
     # ─────────────────────────────
-    # Station fetchers (threads)
+    # Fetchers
     # ─────────────────────────────
 
     def _do_play(self, station: dict):
         if not station or not station.get("stream_url"):
-            log_event(
-                f"Pas de stream_url pour {station.get('name','?') if station else '?'}",
-                level="debug",
-            )
             return
         self.player.play(station)
 
@@ -243,6 +218,25 @@ class RadiooApp(Gtk.Application):
         GLib.idle_add(self._push_stations, results)
 
     def _fetch_section(self, section: str):
+        # Section "adfree" = curated + SomaFM uniquement, garanti sans pub
+        if section == "adfree":
+            try:
+                results  = curated.get_stations_for_themes([])  # toutes les curated
+                seen_ids = {s["id"] for s in results}
+                # Toutes les stations SomaFM (tous genres)
+                all_themes = list(THEME_BY_ID.keys())
+                seen_soma: set[str] = set()
+                for tid in all_themes:
+                    for s in somafm.get_stations_for_themes([tid], THEME_BY_ID):
+                        if s["id"] not in seen_ids and s["id"] not in seen_soma:
+                            seen_soma.add(s["id"])
+                            results.append(s)
+            except Exception as exc:
+                log_event(f"Erreur fetch adfree: {exc}")
+                results = []
+            GLib.idle_add(self._push_stations, results)
+            return
+
         params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["popular"])
         try:
             raw = radiobrowser._get("/stations", params)
@@ -276,10 +270,6 @@ class RadiooApp(Gtk.Application):
         favs    = self.store.all()
         payload = json.dumps(favs, ensure_ascii=False)
         self._js(f"window.onFavoritesLoaded({payload})")
-
-    # ─────────────────────────────
-    # Player callbacks → JS
-    # ─────────────────────────────
 
     def _cb_status(self, text: str):
         self._js(f"window.onStatusChange({json.dumps(text)})")
