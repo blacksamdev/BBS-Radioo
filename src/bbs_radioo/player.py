@@ -9,7 +9,13 @@ from gi.repository import GLib
 from bbs_radioo.logging_utils import log_event
 from bbs_radioo.updater import Updater
 
-_MPV_IPC_SOCKET = "/tmp/bbs-radioo-mpv.sock"
+# XDG_RUNTIME_DIR (/run/user/1000) est partagé entre le Flatpak et le host —
+# contrairement à /tmp qui est isolé dans le sandbox.
+_MPV_IPC_SOCKET = os.path.join(
+    os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
+    "bbs-radioo-mpv.sock"
+)
+
 _METADATA_POLL_INTERVAL = 5.0
 
 
@@ -57,12 +63,11 @@ class RadioPlayer:
 
     def set_volume(self, volume: int):
         self._volume = max(0, min(100, volume))
-        # Envoyer immédiatement si MPV est actif, sinon sera appliqué au prochain play()
         if self._is_playing and os.path.exists(_MPV_IPC_SOCKET):
             self._ipc_set_property("volume", self._volume)
             log_event(f"Volume IPC → {self._volume}", level="debug")
         else:
-            log_event(f"Volume sauvegardé → {self._volume} (pas de stream actif)", level="debug")
+            log_event(f"Volume sauvegardé → {self._volume}", level="debug")
 
     def is_playing(self) -> bool:
         return self._is_playing
@@ -73,10 +78,8 @@ class RadioPlayer:
     def cleanup(self):
         log_event("Player cleanup…")
         self._polling = False
-
         self._ipc_command("quit")
         time.sleep(0.4)
-
         with self._lock:
             for proc in list(self._all_processes):
                 if proc and proc.poll() is None:
@@ -90,7 +93,6 @@ class RadioPlayer:
                             pass
             self._all_processes.clear()
             self._process = None
-
         self._pkill_host()
         self._remove_socket()
 
@@ -159,13 +161,15 @@ class RadioPlayer:
     def _stop_current(self):
         self._ipc_command("quit")
         time.sleep(0.3)
-        if self._process and self._process.poll() is None:
+        # Capturer dans une variable locale pour éviter la race condition NoneType
+        proc = self._process
+        if proc and proc.poll() is None:
             try:
-                self._process.terminate()
-                self._process.wait(timeout=2)
+                proc.terminate()
+                proc.wait(timeout=2)
             except Exception:
                 try:
-                    self._process.kill()
+                    proc.kill()
                 except Exception:
                     pass
         self._pkill_host()
@@ -201,6 +205,7 @@ class RadioPlayer:
 
             # Attendre le socket IPC (max 8 s)
             deadline = time.monotonic() + 8.0
+            socket_found = False
             while time.monotonic() < deadline:
                 if proc.poll() is not None:
                     self._status("Impossible de se connecter au stream.")
@@ -209,12 +214,15 @@ class RadioPlayer:
                         self._is_playing = False
                     return
                 if os.path.exists(_MPV_IPC_SOCKET):
+                    socket_found = True
                     break
                 time.sleep(0.1)
 
-            # Appliquer le volume courant via IPC (au cas où il aurait changé
-            # entre le lancement et la création du socket)
-            self._ipc_set_property("volume", self._volume)
+            if not socket_found:
+                log_event(f"Socket IPC introuvable pour {station.get('name')} — IPC désactivé", level="debug")
+            else:
+                # Appliquer le volume courant dès que le socket est prêt
+                self._ipc_set_property("volume", self._volume)
 
             self._status(f"En écoute : {station.get('name', '')}")
             if self.on_station_change:
