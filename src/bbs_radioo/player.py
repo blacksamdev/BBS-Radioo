@@ -8,7 +8,7 @@ import time
 from gi.repository import GLib
 
 from bbs_radioo.logging_utils import log_event
-from bbs_radioo.updater import Updater
+from bbs_radioo.updater import Updater, IN_FLATPAK
 
 _MPV_IPC_SOCKET = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
@@ -16,6 +16,12 @@ _MPV_IPC_SOCKET = os.path.join(
 )
 
 _METADATA_POLL_INTERVAL = 4.0
+
+
+def _run_host(args: list, **kwargs) -> subprocess.CompletedProcess:
+    """Exécute une commande sur le host (via flatpak-spawn ou directement)."""
+    cmd = (["flatpak-spawn", "--host"] + args) if IN_FLATPAK else args
+    return subprocess.run(cmd, **kwargs)
 
 
 class RadioPlayer:
@@ -96,46 +102,34 @@ class RadioPlayer:
         self._remove_socket()
 
     # ─────────────────────────────
-    # Trouver le stream MPV dans PipeWire
-    # Méthode 1 : pw-dump (JSON structuré — le plus fiable)
-    # Méthode 2 : wpctl status (fallback avec log du format brut)
+    # PipeWire — volume + metadata
     # ─────────────────────────────
 
     def _find_stream_pw(self) -> tuple[str | None, str | None]:
-        """
-        Retourne (node_id, track_title) du stream MPV actif.
-        Essaie pw-dump d'abord, puis wpctl.
-        """
+        """Retourne (node_id, track_title). Essaie pw-dump puis wpctl."""
         result = self._find_stream_pwdump()
         if result[0]:
             return result
         return self._find_stream_wpctl()
 
     def _find_stream_pwdump(self) -> tuple[str | None, str | None]:
-        """
-        Utilise pw-dump (JSON PipeWire) pour trouver le stream MPV.
-        Cherche un node de type Stream/Output/Audio avec "BBS radiOO" ou "mpv".
-        """
         try:
-            result = subprocess.run(
-                ["flatpak-spawn", "--host", "pw-dump"],
-                capture_output=True, text=True, timeout=6
-            )
-            if not result.stdout.strip():
+            r = _run_host(["pw-dump"], capture_output=True, text=True, timeout=6)
+            if not r.stdout.strip():
                 log_event("pw-dump: sortie vide", level="debug")
                 return None, None
 
-            nodes = json.loads(result.stdout)
+            nodes = json.loads(r.stdout)
             for node in nodes:
                 if "Node" not in node.get("type", ""):
                     continue
                 info  = node.get("info", {})
                 props = info.get("props", {})
 
-                node_name    = props.get("node.name", "")
-                media_class  = props.get("media.class", "")
-                app_name     = props.get("application.name", "")
-                media_name   = props.get("media.name", "")
+                node_name   = props.get("node.name", "")
+                media_class = props.get("media.class", "")
+                app_name    = props.get("application.name", "")
+                media_name  = props.get("media.name", "")
 
                 is_mpv_stream = (
                     "Stream/Output/Audio" in media_class and (
@@ -149,8 +143,6 @@ class RadioPlayer:
                     continue
 
                 node_id = str(node.get("id", ""))
-
-                # Extraire le titre depuis le nom du node ou media.name
                 title = None
                 for source in [node_name, media_name]:
                     m = re.search(r'BBS radiOO\s*-\s*(.+)', source)
@@ -159,39 +151,30 @@ class RadioPlayer:
                         break
 
                 log_event(
-                    f"pw-dump: node #{node_id} class={media_class} "
-                    f"name='{node_name}' title='{title}'",
+                    f"pw-dump: node #{node_id} class={media_class} title='{title}'",
                     level="debug"
                 )
                 return node_id, title
 
-            log_event("pw-dump: aucun stream MPV trouvé", level="debug")
+            log_event("pw-dump: aucun stream MPV", level="debug")
 
         except json.JSONDecodeError as e:
-            log_event(f"pw-dump JSON error: {e}", level="debug")
+            log_event(f"pw-dump JSON: {e}", level="debug")
         except Exception as e:
             log_event(f"pw-dump: {e}", level="debug")
 
         return None, None
 
     def _find_stream_wpctl(self) -> tuple[str | None, str | None]:
-        """
-        Fallback wpctl status. Log le contenu brut pour diagnostiquer le format.
-        """
         try:
-            result = subprocess.run(
-                ["flatpak-spawn", "--host", "wpctl", "status"],
-                capture_output=True, text=True, timeout=5
-            )
-            output = result.stdout
+            r = _run_host(["wpctl", "status"], capture_output=True, text=True, timeout=5)
+            output = r.stdout
 
-            # Log toutes les lignes contenant mpv ou BBS pour diagnostiquer
             relevant = [l.strip() for l in output.split("\n")
                         if l.strip() and ("mpv" in l.lower() or "BBS" in l)]
-            log_event(f"wpctl mpv/BBS lines: {relevant[:8]}", level="debug")
+            log_event(f"wpctl mpv/BBS: {relevant[:6]}", level="debug")
 
             for line in output.split("\n"):
-                # Lignes de streams : contiennent "BBS radiOO" OU ("mpv" + "vol:")
                 if "BBS radiOO" in line or (
                     re.search(r"mpv", line, re.IGNORECASE) and "vol:" in line
                 ):
@@ -209,19 +192,13 @@ class RadioPlayer:
 
         return None, None
 
-    # ─────────────────────────────
-    # Volume
-    # ─────────────────────────────
-
     def _set_volume_pw(self, volume: int) -> bool:
-        """Cherche le stream puis applique le volume via wpctl set-volume."""
         node_id, _ = self._find_stream_pw()
         if not node_id:
             return False
         try:
-            subprocess.run(
-                ["flatpak-spawn", "--host", "wpctl",
-                 "set-volume", node_id, f"{volume}%"],
+            _run_host(
+                ["wpctl", "set-volume", node_id, f"{volume}%"],
                 capture_output=True, timeout=3
             )
             log_event(f"wpctl set-volume #{node_id} → {volume}%", level="debug")
@@ -235,7 +212,6 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _get_track(self) -> str | None:
-        """Titre en cours : pw-dump → wpctl → IPC."""
         _, title = self._find_stream_pw()
         if title:
             return title
@@ -253,8 +229,8 @@ class RadioPlayer:
             "print(r.get('data','') if r.get('error')=='success' else '',end='')"
         )
         try:
-            r = subprocess.run(
-                ["flatpak-spawn", "--host", "python3", "-c", script],
+            r = _run_host(
+                ["python3", "-c", script],
                 capture_output=True, text=True, timeout=3
             )
             v = r.stdout.strip()
@@ -280,7 +256,7 @@ class RadioPlayer:
             time.sleep(_METADATA_POLL_INTERVAL)
 
     # ─────────────────────────────
-    # IPC via host python3
+    # IPC MPV
     # ─────────────────────────────
 
     def _ipc_send_via_host(self, payload: str):
@@ -294,7 +270,8 @@ class RadioPlayer:
             f"c.close()"
         )
         try:
-            Updater.run_host(["python3", "-c", script], quiet=True)
+            _run_host(["python3", "-c", script],
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
             log_event(f"IPC send: {e}", level="debug")
 
@@ -372,7 +349,6 @@ class RadioPlayer:
             if socket_found:
                 self._ipc_set_property_host("volume", self._volume)
 
-            # Volume via PipeWire après enregistrement du flux (délai 2s)
             threading.Timer(2.0, lambda: self._apply_volume_if_current(station_id)).start()
 
             self._status(f"En écoute : {station.get('name', '')}")
@@ -392,7 +368,7 @@ class RadioPlayer:
                 if self._current_station and self._current_station.get("id") == station_id:
                     self._is_playing = False
                 else:
-                    log_event("_launch end: station changée, _is_playing conservé", level="debug")
+                    log_event("_launch end: station changée", level="debug")
                     return
 
             self._status("Stream terminé.")
