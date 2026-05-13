@@ -22,16 +22,24 @@ def _fetch_channels() -> list[dict]:
 
 def _best_stream(playlists: list[dict]) -> str | None:
     """Choisit le meilleur stream (AAC > MP3, qualité la plus haute)."""
+    if not playlists:
+        return None
     order = {"aac": 0, "aacp": 1, "mp3": 2}
-    sorted_pl = sorted(
-        playlists,
-        key=lambda p: (order.get(p.get("format", "mp3"), 99), -int(p.get("quality", 0)))
-    )
+
+    def sort_key(p):
+        try:
+            quality = -int(p.get("quality") or 0)
+        except (ValueError, TypeError):
+            quality = 0
+        return (order.get(p.get("format", "mp3"), 99), quality)
+
+    sorted_pl = sorted(playlists, key=sort_key)
     return sorted_pl[0].get("url") if sorted_pl else None
 
 
 def get_stations_for_themes(theme_ids: list[str], theme_map: dict) -> list[dict]:
-    """Retourne les stations SomaFM correspondant aux thèmes sélectionnés."""
+    """Retourne les stations SomaFM correspondant aux thèmes sélectionnés.
+    Si theme_ids est vide, retourne toutes les stations."""
     channels = _fetch_channels()
     if not channels:
         return []
@@ -61,7 +69,7 @@ def get_stations_for_themes(theme_ids: list[str], theme_map: dict) -> list[dict]
             "favicon": ch.get("image", "") or ch.get("thumbnail", ""),
             "homepage": ch.get("homePageUrl", ""),
             "description": ch.get("description", ""),
-            "tags": list(ch_tags),
+            "tags": [t.strip() for t in ch.get("tags", "").split(",") if t.strip()],
             "listeners": ch.get("listeners", 0),
             "country": "United States",
             "source": "somafm",

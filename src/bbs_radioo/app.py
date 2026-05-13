@@ -200,19 +200,30 @@ class RadiooApp(Gtk.Application):
 
     def _fetch_section(self, section: str):
 
-        # ── Sans pub : curated + toutes les stations SomaFM ──
+        # ── Sans pub : curated + SomaFM ──
+        # Les deux try/except sont séparés pour que curated reste visible
+        # même si SomaFM échoue.
         if section == "adfree":
+            results = []
+
             try:
-                results  = curated.get_stations_for_themes([])
-                seen_ids = {s["id"] for s in results}
-                # theme_ids=[] → toutes les chaînes SomaFM sans filtre
-                for s in somafm.get_stations_for_themes([], THEME_BY_ID):
+                results = curated.get_stations_for_themes([])
+                log_event(f"Adfree curated: {len(results)} stations")
+            except Exception as exc:
+                log_event(f"Erreur curated adfree: {exc}")
+
+            seen_ids = {s["id"] for s in results}
+
+            try:
+                soma = somafm.get_stations_for_themes([], THEME_BY_ID)
+                for s in soma:
                     if s["id"] not in seen_ids:
                         seen_ids.add(s["id"])
                         results.append(s)
+                log_event(f"Adfree total: {len(results)} stations (dont {len(soma)} SomaFM)")
             except Exception as exc:
-                log_event(f"Erreur fetch adfree: {exc}")
-                results = []
+                log_event(f"Erreur somafm adfree: {exc}")
+
             GLib.idle_add(self._push_stations, results)
             return
 
