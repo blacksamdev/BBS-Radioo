@@ -122,7 +122,7 @@ class RadiooApp(Gtk.Application):
         self.player.on_station_change  = self._cb_station
         self.player.on_metadata_change = self._cb_metadata
         self.player.set_volume(self.settings.get("volume", 100))
-        log_event("Fenêtre créée, WebView chargée.")
+        log_event("Fenêtre créée.")
 
     # ─────────────────────────────
     # Shutdown
@@ -141,7 +141,7 @@ class RadiooApp(Gtk.Application):
         return True
 
     # ─────────────────────────────
-    # WebKit events
+    # WebKit
     # ─────────────────────────────
 
     def _on_load_changed(self, webview, event):
@@ -151,11 +151,10 @@ class RadiooApp(Gtk.Application):
         vol = self.settings.get("volume", 100)
         self._js(f"document.getElementById('vol').value={vol}; setVol({vol});")
         self._push_favorites()
-        # Section par défaut au démarrage
         threading.Thread(target=self._fetch_section, args=("trending",), daemon=True).start()
 
     # ─────────────────────────────
-    # Bridge : JS → Python
+    # Bridge JS → Python
     # ─────────────────────────────
 
     def _on_js_message(self, _manager, message):
@@ -181,14 +180,12 @@ class RadiooApp(Gtk.Application):
             if station:
                 self.store.toggle(station)
                 self._push_favorites()
-        elif action == "load_genre":
-            genre = msg.get("genre", "")
-            if genre:
-                threading.Thread(target=self._fetch_genre, args=(genre,), daemon=True).start()
         elif action == "load_section":
             section = msg.get("section", "")
             if section:
-                threading.Thread(target=self._fetch_section, args=(section,), daemon=True).start()
+                threading.Thread(
+                    target=self._fetch_section, args=(section,), daemon=True
+                ).start()
         else:
             log_event(f"Action inconnue: {action}", level="debug")
 
@@ -201,48 +198,32 @@ class RadiooApp(Gtk.Application):
             return
         self.player.play(station)
 
-    def _fetch_genre(self, genre: str):
-        try:
-            theme_ids = [genre]
-            results   = curated.get_stations_for_themes(theme_ids)
-            seen_ids  = {s["id"] for s in results}
-            for s in somafm.get_stations_for_themes(theme_ids, THEME_BY_ID):
-                if s["id"] not in seen_ids:
-                    seen_ids.add(s["id"]); results.append(s)
-            for s in radiobrowser.get_stations_for_themes(theme_ids, THEME_BY_ID):
-                if s["id"] not in seen_ids:
-                    seen_ids.add(s["id"]); results.append(s)
-        except Exception as exc:
-            log_event(f"Erreur fetch genre {genre}: {exc}")
-            results = []
-        GLib.idle_add(self._push_stations, results)
-
     def _fetch_section(self, section: str):
-        # Section "adfree" = curated + SomaFM uniquement, garanti sans pub
+
+        # ── Sans pub : curated + toutes les stations SomaFM ──
         if section == "adfree":
             try:
-                results  = curated.get_stations_for_themes([])  # toutes les curated
+                results  = curated.get_stations_for_themes([])
                 seen_ids = {s["id"] for s in results}
-                # Toutes les stations SomaFM (tous genres)
-                all_themes = list(THEME_BY_ID.keys())
-                seen_soma: set[str] = set()
-                for tid in all_themes:
-                    for s in somafm.get_stations_for_themes([tid], THEME_BY_ID):
-                        if s["id"] not in seen_ids and s["id"] not in seen_soma:
-                            seen_soma.add(s["id"])
-                            results.append(s)
+                # theme_ids=[] → toutes les chaînes SomaFM sans filtre
+                for s in somafm.get_stations_for_themes([], THEME_BY_ID):
+                    if s["id"] not in seen_ids:
+                        seen_ids.add(s["id"])
+                        results.append(s)
             except Exception as exc:
                 log_event(f"Erreur fetch adfree: {exc}")
                 results = []
             GLib.idle_add(self._push_stations, results)
             return
 
+        # ── Sections RadioBrowser ──
         params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["popular"])
         try:
             raw = radiobrowser._get("/stations", params)
         except Exception as exc:
             log_event(f"Erreur fetch section {section}: {exc}")
             raw = []
+
         seen, stations = set(), []
         for s in raw:
             uid = s.get("stationuuid", "")
@@ -252,10 +233,11 @@ class RadiooApp(Gtk.Application):
             d = radiobrowser._station_to_dict(s)
             if d:
                 stations.append(d)
+
         GLib.idle_add(self._push_stations, stations)
 
     # ─────────────────────────────
-    # Bridge : Python → JS
+    # Bridge Python → JS
     # ─────────────────────────────
 
     def _js(self, script: str):

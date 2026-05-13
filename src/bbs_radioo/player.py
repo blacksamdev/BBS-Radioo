@@ -1,5 +1,7 @@
 import os
+import re
 import json
+import subprocess
 import socket as _socket
 import threading
 import time
@@ -9,8 +11,6 @@ from gi.repository import GLib
 from bbs_radioo.logging_utils import log_event
 from bbs_radioo.updater import Updater
 
-# Socket dans XDG_RUNTIME_DIR (/run/user/1000) — partagé host/Flatpak en théorie.
-# En pratique on utilise flatpak-spawn pour les commandes IPC depuis le host.
 _MPV_IPC_SOCKET = os.path.join(
     os.environ.get("XDG_RUNTIME_DIR", "/tmp"),
     "bbs-radioo-mpv.sock"
@@ -64,7 +64,11 @@ class RadioPlayer:
     def set_volume(self, volume: int):
         self._volume = max(0, min(100, volume))
         if self._is_playing:
-            self._ipc_set_property("volume", self._volume)
+            # Contrôle direct du sink input PipeWire/PulseAudio — visible dans les
+            # paramètres système KDE et efficace sans IPC socket.
+            if not self._set_volume_pactl(self._volume):
+                # Fallback : IPC MPV via le host
+                self._ipc_set_property_host("volume", self._volume)
             log_event(f"Volume → {self._volume}", level="debug")
         else:
             log_event(f"Volume sauvegardé → {self._volume}", level="debug")
@@ -78,7 +82,7 @@ class RadioPlayer:
     def cleanup(self):
         log_event("Player cleanup…")
         self._polling = False
-        self._ipc_command("quit")
+        self._ipc_command_host("quit")
         time.sleep(0.4)
         with self._lock:
             for proc in list(self._all_processes):
@@ -97,54 +101,93 @@ class RadioPlayer:
         self._remove_socket()
 
     # ─────────────────────────────
-    # IPC — exécuté côté HOST via flatpak-spawn
-    # Le socket MPV est sur le host. Depuis l'intérieur du Flatpak,
-    # on ne peut pas s'y connecter directement (isolation /tmp ou runtime).
-    # On passe par flatpak-spawn --host python3 -c "..." pour accéder
-    # au socket depuis le même contexte que MPV.
+    # Volume PipeWire via pactl
+    # ─────────────────────────────
+
+    def _set_volume_pactl(self, volume: int) -> bool:
+        """
+        Contrôle le volume du flux MPV directement dans PipeWire/PulseAudio.
+        Cherche le sink input dont le nom contient 'BBS radiOO'.
+        Retourne True si succès.
+        """
+        try:
+            result = subprocess.run(
+                ["flatpak-spawn", "--host", "pactl", "list", "sink-inputs"],
+                capture_output=True, text=True, timeout=4
+            )
+            output = result.stdout
+
+            # Trouver le Sink Input # qui contient "BBS radiOO"
+            sink_input_id = None
+            current_id = None
+            for line in output.split("\n"):
+                m = re.search(r"Sink Input #(\d+)", line)
+                if m:
+                    current_id = m.group(1)
+                if "BBS radiOO" in line and current_id:
+                    sink_input_id = current_id
+                    break
+
+            if not sink_input_id:
+                log_event("pactl: sink input BBS radiOO non trouvé", level="debug")
+                return False
+
+            subprocess.run(
+                ["flatpak-spawn", "--host", "pactl",
+                 "set-sink-input-volume", sink_input_id, f"{volume}%"],
+                capture_output=True, timeout=2
+            )
+            log_event(f"pactl sink-input #{sink_input_id} → {volume}%", level="debug")
+            return True
+
+        except Exception as e:
+            log_event(f"pactl volume failed: {e}", level="debug")
+            return False
+
+    # ─────────────────────────────
+    # IPC MPV via host (contourne isolation Flatpak)
     # ─────────────────────────────
 
     def _ipc_send_via_host(self, payload: str):
         """Envoie un message JSON IPC au socket MPV en passant par le host."""
-        escaped = payload.replace("'", "\\'")
+        payload_escaped = payload.replace("'", "\\'")
         script = (
-            f"import socket,sys;"
-            f"s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
-            f"s.settimeout(1.0);"
-            f"s.connect('{_MPV_IPC_SOCKET}');"
-            f"s.sendall(b'{escaped}\\n');"
-            f"s.close()"
+            f"import socket as s,sys;"
+            f"c=s.socket(s.AF_UNIX,s.SOCK_STREAM);"
+            f"c.settimeout(1.0);"
+            f"c.connect('{_MPV_IPC_SOCKET}');"
+            f"c.sendall(b'{payload_escaped}\\n');"
+            f"c.close()"
         )
         try:
             Updater.run_host(["python3", "-c", script], quiet=True)
         except Exception as e:
-            log_event(f"IPC host send failed: {e}", level="debug")
+            log_event(f"IPC host failed: {e}", level="debug")
 
-    def _ipc_command(self, *args):
+    def _ipc_command_host(self, *args):
         payload = json.dumps({"command": list(args)})
         self._ipc_send_via_host(payload)
 
-    def _ipc_set_property(self, prop: str, value):
+    def _ipc_set_property_host(self, prop: str, value):
         payload = json.dumps({"command": ["set_property", prop, value]})
         self._ipc_send_via_host(payload)
 
-    def _ipc_get_property(self, prop: str):
-        """Lit une propriété MPV via le host — retourne la valeur ou None."""
+    def _ipc_get_property_host(self, prop: str):
+        """Lit une propriété MPV via le host."""
         script = (
-            f"import socket,json,sys;"
-            f"s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
-            f"s.settimeout(1.0);"
+            "import socket,json;"
+            "s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
+            "s.settimeout(1.0);"
             f"s.connect('{_MPV_IPC_SOCKET}');"
-            f"msg=json.dumps({{'command':['get_property','{prop}']}}).encode()+b'\\n';"
-            f"s.sendall(msg);"
-            f"buf=b'';"
-            f"[buf:=buf+c for c in iter(lambda:s.recv(256),b'') if b'\\n' not in buf];"
-            f"s.close();"
-            f"resp=json.loads(buf.split(b'\\n')[0]);"
-            f"print(resp.get('data','') if resp.get('error')=='success' else '',end='')"
+            f"s.sendall(json.dumps({{'command':['get_property','{prop}']}}).encode()+b'\\n');"
+            "buf=b'';"
+            "b=s.recv(4096);"
+            "buf+=b;"
+            "s.close();"
+            "r=json.loads(buf.split(b'\\n')[0]);"
+            "print(r.get('data','') if r.get('error')=='success' else '',end='')"
         )
         try:
-            import subprocess
             result = subprocess.run(
                 ["flatpak-spawn", "--host", "python3", "-c", script],
                 capture_output=True, text=True, timeout=3
@@ -158,7 +201,7 @@ class RadioPlayer:
         self._polling = True
         last_title = ""
         while self._polling and self._is_playing:
-            title = self._ipc_get_property("media-title") or ""
+            title = self._ipc_get_property_host("media-title") or ""
             if isinstance(title, str) and title != last_title:
                 last_title = title
                 if self.on_metadata_change:
@@ -170,7 +213,7 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _stop_current(self):
-        self._ipc_command("quit")
+        self._ipc_command_host("quit")
         time.sleep(0.3)
         proc = self._process
         if proc and proc.poll() is None:
@@ -188,23 +231,14 @@ class RadioPlayer:
 
     def _pkill_host(self):
         try:
-            Updater.run_host(["pkill", "-f", _MPV_IPC_SOCKET], quiet=True)
-        except Exception:
-            pass
-        try:
             Updater.run_host(["pkill", "-f", "BBS radiOO"], quiet=True)
         except Exception:
             pass
 
     def _remove_socket(self):
         try:
-            # Supprimer le socket depuis le host
             Updater.run_host(["rm", "-f", _MPV_IPC_SOCKET], quiet=True)
         except Exception:
-            pass
-        try:
-            os.remove(_MPV_IPC_SOCKET)
-        except OSError:
             pass
 
     def _launch(self, station: dict):
@@ -218,8 +252,7 @@ class RadioPlayer:
             with self._lock:
                 self._all_processes.append(proc)
 
-            # Attendre que MPV crée le socket IPC côté host (max 8 s)
-            # On vérifie via flatpak-spawn pour ne pas souffrir de l'isolation
+            # Attendre que MPV démarre (socket ou 8s timeout)
             deadline = time.monotonic() + 8.0
             socket_found = False
             while time.monotonic() < deadline:
@@ -229,24 +262,19 @@ class RadioPlayer:
                     with self._lock:
                         self._is_playing = False
                     return
-                # Vérifier l'existence du socket côté host
-                result = Updater.run_host(
-                    ["test", "-S", _MPV_IPC_SOCKET], quiet=True
-                )
+                result = Updater.run_host(["test", "-S", _MPV_IPC_SOCKET], quiet=True)
                 if result.returncode == 0:
                     socket_found = True
                     break
                 time.sleep(0.15)
 
-            if not socket_found:
-                log_event(
-                    f"Socket IPC introuvable (timeout) pour {station.get('name')}",
-                    level="debug"
-                )
-            else:
-                # Appliquer le volume dès que le socket est prêt
-                self._ipc_set_property("volume", self._volume)
-                log_event(f"Socket IPC trouvé — volume={self._volume}", level="debug")
+            if socket_found:
+                # Appliquer le volume initial via IPC
+                self._ipc_set_property_host("volume", self._volume)
+
+            # Courte attente pour que PipeWire enregistre le flux,
+            # puis appliquer le volume via pactl aussi
+            threading.Timer(1.5, self._apply_pactl_volume_delayed).start()
 
             self._status(f"En écoute : {station.get('name', '')}")
             if self.on_station_change:
@@ -277,6 +305,11 @@ class RadioPlayer:
             self._polling = False
             with self._lock:
                 self._is_playing = False
+
+    def _apply_pactl_volume_delayed(self):
+        """Applique le volume via pactl après que PipeWire a enregistré le flux."""
+        if self._is_playing:
+            self._set_volume_pactl(self._volume)
 
     def _status(self, text: str):
         log_event(text)
