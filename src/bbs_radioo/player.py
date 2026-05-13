@@ -63,7 +63,7 @@ class RadioPlayer:
     def set_volume(self, volume: int):
         self._volume = max(0, min(100, volume))
         if self._is_playing:
-            if not self._set_volume_wpctl(self._volume):
+            if not self._set_volume_pw(self._volume):
                 self._ipc_set_property_host("volume", self._volume)
         else:
             log_event(f"Volume sauvegardé → {self._volume}", level="debug")
@@ -96,74 +96,135 @@ class RadioPlayer:
         self._remove_socket()
 
     # ─────────────────────────────
-    # wpctl — volume + metadata
-    #
-    # Dans `wpctl status`, les STREAMS actifs ont `[vol: X.XX]` dans la ligne.
-    # Les CLIENT nodes ont `[version, user, pid]` → c'est le mauvais node.
-    # On cherche donc "mpv" ET "vol:" pour trouver le vrai stream audio.
+    # Trouver le stream MPV dans PipeWire
+    # Méthode 1 : pw-dump (JSON structuré — le plus fiable)
+    # Méthode 2 : wpctl status (fallback avec log du format brut)
     # ─────────────────────────────
 
-    def _get_wpctl_status(self) -> str:
+    def _find_stream_pw(self) -> tuple[str | None, str | None]:
+        """
+        Retourne (node_id, track_title) du stream MPV actif.
+        Essaie pw-dump d'abord, puis wpctl.
+        """
+        result = self._find_stream_pwdump()
+        if result[0]:
+            return result
+        return self._find_stream_wpctl()
+
+    def _find_stream_pwdump(self) -> tuple[str | None, str | None]:
+        """
+        Utilise pw-dump (JSON PipeWire) pour trouver le stream MPV.
+        Cherche un node de type Stream/Output/Audio avec "BBS radiOO" ou "mpv".
+        """
         try:
-            r = subprocess.run(
+            result = subprocess.run(
+                ["flatpak-spawn", "--host", "pw-dump"],
+                capture_output=True, text=True, timeout=6
+            )
+            if not result.stdout.strip():
+                log_event("pw-dump: sortie vide", level="debug")
+                return None, None
+
+            nodes = json.loads(result.stdout)
+            for node in nodes:
+                if "Node" not in node.get("type", ""):
+                    continue
+                info  = node.get("info", {})
+                props = info.get("props", {})
+
+                node_name    = props.get("node.name", "")
+                media_class  = props.get("media.class", "")
+                app_name     = props.get("application.name", "")
+                media_name   = props.get("media.name", "")
+
+                is_mpv_stream = (
+                    "Stream/Output/Audio" in media_class and (
+                        "BBS radiOO" in node_name or
+                        "BBS radiOO" in media_name or
+                        "mpv" in node_name.lower() or
+                        "mpv" in app_name.lower()
+                    )
+                )
+                if not is_mpv_stream:
+                    continue
+
+                node_id = str(node.get("id", ""))
+
+                # Extraire le titre depuis le nom du node ou media.name
+                title = None
+                for source in [node_name, media_name]:
+                    m = re.search(r'BBS radiOO\s*-\s*(.+)', source)
+                    if m:
+                        title = m.group(1).strip()
+                        break
+
+                log_event(
+                    f"pw-dump: node #{node_id} class={media_class} "
+                    f"name='{node_name}' title='{title}'",
+                    level="debug"
+                )
+                return node_id, title
+
+            log_event("pw-dump: aucun stream MPV trouvé", level="debug")
+
+        except json.JSONDecodeError as e:
+            log_event(f"pw-dump JSON error: {e}", level="debug")
+        except Exception as e:
+            log_event(f"pw-dump: {e}", level="debug")
+
+        return None, None
+
+    def _find_stream_wpctl(self) -> tuple[str | None, str | None]:
+        """
+        Fallback wpctl status. Log le contenu brut pour diagnostiquer le format.
+        """
+        try:
+            result = subprocess.run(
                 ["flatpak-spawn", "--host", "wpctl", "status"],
                 capture_output=True, text=True, timeout=5
             )
-            return r.stdout
+            output = result.stdout
+
+            # Log toutes les lignes contenant mpv ou BBS pour diagnostiquer
+            relevant = [l.strip() for l in output.split("\n")
+                        if l.strip() and ("mpv" in l.lower() or "BBS" in l)]
+            log_event(f"wpctl mpv/BBS lines: {relevant[:8]}", level="debug")
+
+            for line in output.split("\n"):
+                # Lignes de streams : contiennent "BBS radiOO" OU ("mpv" + "vol:")
+                if "BBS radiOO" in line or (
+                    re.search(r"mpv", line, re.IGNORECASE) and "vol:" in line
+                ):
+                    id_m = re.search(r"\b(\d+)\b", line)
+                    if not id_m:
+                        continue
+                    sid = id_m.group(1)
+                    title_m = re.search(r'BBS radiOO\s*-\s*(.+?)(?:\s*[\[|]|$)', line)
+                    title = title_m.group(1).strip() if title_m else None
+                    log_event(f"wpctl: stream #{sid} title='{title}'", level="debug")
+                    return sid, title
+
         except Exception as e:
-            log_event(f"wpctl status: {e}", level="debug")
-            return ""
+            log_event(f"wpctl: {e}", level="debug")
 
-    def _find_wpctl_stream_id(self) -> tuple[str | None, str | None]:
-        """
-        Retourne (stream_id, track_title) depuis wpctl status.
-
-        Cherche une ligne contenant "mpv" ET "vol:" — ce sont les STREAMS actifs.
-        Exemple de ligne stream :
-            ├─  142. mpv-bin: BBS radiOO - Artist - Title   [vol: 1.00]
-
-        Les lignes CLIENT (mpv sans vol:) sont ignorées :
-            ├─  85. mpv-bin  [1.4.9, bbs@host, pid:2]
-        """
-        output = self._get_wpctl_status()
-        log_event(f"wpctl: {len(output)} chars", level="debug")
-
-        for line in output.split("\n"):
-            # Condition clé : doit contenir "mpv" ET "vol:"
-            if re.search(r"mpv", line, re.IGNORECASE) and "vol:" in line:
-                # Extraire l'ID (premier nombre dans la ligne)
-                id_m = re.search(r"\b(\d+)\b", line)
-                if not id_m:
-                    continue
-                stream_id = id_m.group(1)
-
-                # Extraire le titre depuis le nom du stream
-                # Format : "N. mpv-bin: BBS radiOO - Artiste - Titre   [vol: X.XX]"
-                title = None
-                name_m = re.search(r'BBS radiOO\s*-\s*(.+?)\s*\[vol:', line)
-                if name_m:
-                    title = name_m.group(1).strip()
-
-                log_event(
-                    f"wpctl stream #{stream_id}, title='{title}' — '{line.strip()}'",
-                    level="debug"
-                )
-                return stream_id, title
-
-        log_event("wpctl: aucun stream actif mpv (avec vol:)", level="debug")
         return None, None
 
-    def _set_volume_wpctl(self, volume: int) -> bool:
-        stream_id, _ = self._find_wpctl_stream_id()
-        if not stream_id:
+    # ─────────────────────────────
+    # Volume
+    # ─────────────────────────────
+
+    def _set_volume_pw(self, volume: int) -> bool:
+        """Cherche le stream puis applique le volume via wpctl set-volume."""
+        node_id, _ = self._find_stream_pw()
+        if not node_id:
             return False
         try:
             subprocess.run(
                 ["flatpak-spawn", "--host", "wpctl",
-                 "set-volume", stream_id, f"{volume}%"],
+                 "set-volume", node_id, f"{volume}%"],
                 capture_output=True, timeout=3
             )
-            log_event(f"wpctl: stream #{stream_id} → {volume}%", level="debug")
+            log_event(f"wpctl set-volume #{node_id} → {volume}%", level="debug")
             return True
         except Exception as e:
             log_event(f"wpctl set-volume: {e}", level="debug")
@@ -174,37 +235,10 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _get_track(self) -> str | None:
-        """
-        Extrait le titre en cours depuis wpctl status (ligne du stream).
-        Fallback sur wpctl inspect, puis IPC.
-        """
-        # 1. Depuis la ligne wpctl status directement
-        _, title = self._find_wpctl_stream_id()
+        """Titre en cours : pw-dump → wpctl → IPC."""
+        _, title = self._find_stream_pw()
         if title:
             return title
-
-        # 2. wpctl inspect du stream (donne media.name complet)
-        stream_id, _ = self._find_wpctl_stream_id()
-        if stream_id:
-            try:
-                r = subprocess.run(
-                    ["flatpak-spawn", "--host", "wpctl", "inspect", stream_id],
-                    capture_output=True, text=True, timeout=3
-                )
-                for line in r.stdout.split("\n"):
-                    if "media.name" in line:
-                        m = re.search(r'=\s*"(.+)"', line)
-                        if m:
-                            val = m.group(1)
-                            title_m = re.search(r'BBS radiOO\s*-\s*(.+)', val)
-                            if title_m:
-                                return title_m.group(1).strip()
-                            if "mpv" not in val.lower():
-                                return val
-            except Exception as e:
-                log_event(f"wpctl inspect: {e}", level="debug")
-
-        # 3. IPC MPV via host python3
         return self._get_track_from_ipc()
 
     def _get_track_from_ipc(self) -> str | None:
@@ -246,7 +280,7 @@ class RadioPlayer:
             time.sleep(_METADATA_POLL_INTERVAL)
 
     # ─────────────────────────────
-    # IPC via host
+    # IPC via host python3
     # ─────────────────────────────
 
     def _ipc_send_via_host(self, payload: str):
@@ -319,7 +353,7 @@ class RadioPlayer:
             socket_found = False
             while time.monotonic() < deadline:
                 if self._current_station and self._current_station.get("id") != station_id:
-                    log_event(f"_launch: abandon {station.get('name')} (station changée)", level="debug")
+                    log_event(f"_launch: abandon {station.get('name')}", level="debug")
                     return
                 if proc.poll() is not None:
                     self._status("Impossible de se connecter au stream.")
@@ -335,11 +369,10 @@ class RadioPlayer:
                 time.sleep(0.15)
 
             log_event(f"Socket IPC: {'trouvé' if socket_found else 'timeout'}", level="debug")
-
             if socket_found:
                 self._ipc_set_property_host("volume", self._volume)
 
-            # Appliquer le volume via wpctl après enregistrement PipeWire
+            # Volume via PipeWire après enregistrement du flux (délai 2s)
             threading.Timer(2.0, lambda: self._apply_volume_if_current(station_id)).start()
 
             self._status(f"En écoute : {station.get('name', '')}")
@@ -356,14 +389,10 @@ class RadioPlayer:
             with self._lock:
                 if proc in self._all_processes:
                     self._all_processes.remove(proc)
-                # Fix race condition : ne pas écraser _is_playing si une autre station joue
                 if self._current_station and self._current_station.get("id") == station_id:
                     self._is_playing = False
                 else:
-                    log_event(
-                        f"_launch end: station changée, _is_playing conservé",
-                        level="debug"
-                    )
+                    log_event("_launch end: station changée, _is_playing conservé", level="debug")
                     return
 
             self._status("Stream terminé.")
