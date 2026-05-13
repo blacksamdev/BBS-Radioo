@@ -63,7 +63,9 @@ class RadioPlayer:
     def set_volume(self, volume: int):
         self._volume = max(0, min(100, volume))
         if self._is_playing:
-            self._set_volume_pactl(self._volume)
+            if not self._set_volume_wpctl(self._volume):
+                if not self._set_volume_pactl(self._volume):
+                    self._ipc_set_property_host("volume", self._volume)
         else:
             log_event(f"Volume sauvegardé → {self._volume}", level="debug")
 
@@ -95,137 +97,128 @@ class RadioPlayer:
         self._remove_socket()
 
     # ─────────────────────────────
-    # pactl — volume + metadata
+    # Volume : wpctl (PipeWire natif)
     # ─────────────────────────────
 
-    def _get_pactl_info(self) -> tuple[str | None, str | None]:
+    def _find_wpctl_stream_id(self) -> str | None:
         """
-        Cherche notre MPV dans pactl list sink-inputs.
-        Retourne (sink_input_id, track_title).
-        Cherche "BBS radiOO" dans les propriétés du sink.
+        Cherche l'ID du stream MPV via `wpctl status`.
+        Le format wpctl ressemble à :
+          ├─  42. mpv                    [vol: 1.00]
         """
+        try:
+            result = subprocess.run(
+                ["flatpak-spawn", "--host", "wpctl", "status"],
+                capture_output=True, text=True, timeout=5
+            )
+            output = result.stdout
+            log_event(f"wpctl status: {len(output)} chars", level="debug")
+
+            for line in output.split("\n"):
+                if re.search(r"mpv", line, re.IGNORECASE):
+                    m = re.search(r"\b(\d+)\b", line)
+                    if m:
+                        sid = m.group(1)
+                        log_event(f"wpctl: stream id={sid} — '{line.strip()}'", level="debug")
+                        return sid
+            log_event("wpctl: aucun stream mpv trouvé", level="debug")
+        except Exception as e:
+            log_event(f"wpctl status: {e}", level="debug")
+        return None
+
+    def _set_volume_wpctl(self, volume: int) -> bool:
+        """Contrôle le volume via wpctl set-volume (PipeWire)."""
+        sid = self._find_wpctl_stream_id()
+        if not sid:
+            return False
+        try:
+            # wpctl accepte "80%" ou "0.8"
+            subprocess.run(
+                ["flatpak-spawn", "--host", "wpctl",
+                 "set-volume", sid, f"{volume}%"],
+                capture_output=True, timeout=3
+            )
+            log_event(f"wpctl: stream #{sid} → {volume}%", level="debug")
+            return True
+        except Exception as e:
+            log_event(f"wpctl set-volume: {e}", level="debug")
+            return False
+
+    # ─────────────────────────────
+    # Volume : pactl (fallback)
+    # ─────────────────────────────
+
+    def _set_volume_pactl(self, volume: int) -> bool:
+        """Fallback pactl — log le contenu brut pour diagnostiquer le format."""
         try:
             result = subprocess.run(
                 ["flatpak-spawn", "--host", "pactl", "list", "sink-inputs"],
                 capture_output=True, text=True, timeout=5
             )
             output = result.stdout
-            log_event(f"pactl: {len(output)} chars, {output.count('Sink Input')} sink(s)", level="debug")
+            # Log les 400 premiers chars pour diagnostiquer le format
+            log_event(f"pactl raw[0:400]: {repr(output[:400])}", level="debug")
 
             current_id = None
-            found_id = None
-            found_title = None
-
             for line in output.split("\n"):
-                # Nouveau sink input
-                m = re.search(r"Sink Input #(\d+)", line)
+                # Insensible à la casse pour "Sink Input #N"
+                m = re.search(r"sink input\s*#(\d+)", line, re.IGNORECASE)
                 if m:
                     current_id = m.group(1)
-
-                # Chercher "BBS radiOO" dans n'importe quelle propriété
-                if current_id and "BBS radiOO" in line:
-                    found_id = current_id
-                    # Extraire le titre : "mpv-bin: BBS radiOO - Artiste - Titre"
-                    # ou juste "BBS radiOO" si pas encore de metadata
-                    title_m = re.search(r'BBS radiOO\s*-\s*(.+?)(?:["\s]*$)', line)
-                    if title_m:
-                        found_title = title_m.group(1).strip().rstrip('"\'')
-                    log_event(f"pactl: found sink #{found_id}, title='{found_title}'", level="debug")
-                    break
-
-            # Fallback : chercher par application.name contenant "mpv"
-            if not found_id:
-                current_id = None
-                for line in output.split("\n"):
-                    m = re.search(r"Sink Input #(\d+)", line)
-                    if m:
-                        current_id = m.group(1)
-                    if current_id and re.search(r'application\.name\s*=\s*"mpv', line, re.IGNORECASE):
-                        found_id = current_id
-                        log_event(f"pactl: found mpv sink #{found_id} (fallback)", level="debug")
-                        break
-
-            if not found_id:
-                log_event("pactl: aucun sink MPV trouvé", level="debug")
-
-            return found_id, found_title
-
+                if current_id and ("BBS radiOO" in line or
+                                   re.search(r'application\.name.*mpv', line, re.IGNORECASE)):
+                    subprocess.run(
+                        ["flatpak-spawn", "--host", "pactl",
+                         "set-sink-input-volume", current_id, f"{volume}%"],
+                        capture_output=True, timeout=2
+                    )
+                    log_event(f"pactl: sink #{current_id} → {volume}%", level="debug")
+                    return True
+            log_event(f"pactl: 0 sink trouvé sur {len(output)} chars", level="debug")
         except Exception as e:
-            log_event(f"pactl list failed: {e}", level="debug")
-            return None, None
-
-    def _set_volume_pactl(self, volume: int):
-        sink_id, _ = self._get_pactl_info()
-        if sink_id:
-            try:
-                subprocess.run(
-                    ["flatpak-spawn", "--host", "pactl",
-                     "set-sink-input-volume", sink_id, f"{volume}%"],
-                    capture_output=True, timeout=3
-                )
-                log_event(f"pactl: sink #{sink_id} → {volume}%", level="debug")
-            except Exception as e:
-                log_event(f"pactl set-volume failed: {e}", level="debug")
-        else:
-            # Fallback IPC
-            self._ipc_set_property_host("volume", volume)
+            log_event(f"pactl: {e}", level="debug")
+        return False
 
     # ─────────────────────────────
-    # IPC via host python3
+    # Metadata — wpctl inspect + IPC fallback
     # ─────────────────────────────
 
-    def _ipc_send_via_host(self, payload: str):
-        payload_esc = payload.replace("'", "\\'").replace('"', '\\"')
-        script = (
-            f"import socket as s;"
-            f"c=s.socket(s.AF_UNIX,s.SOCK_STREAM);"
-            f"c.settimeout(1.0);"
-            f"c.connect('{_MPV_IPC_SOCKET}');"
-            f"c.sendall(b\"{payload_esc}\\n\");"
-            f"c.close()"
-        )
+    def _get_track_from_wpctl(self) -> str | None:
+        """Extrait le titre du stream MPV depuis wpctl inspect."""
+        sid = self._find_wpctl_stream_id()
+        if not sid:
+            return None
         try:
-            Updater.run_host(["python3", "-c", script], quiet=True)
+            result = subprocess.run(
+                ["flatpak-spawn", "--host", "wpctl", "inspect", sid],
+                capture_output=True, text=True, timeout=3
+            )
+            for line in result.stdout.split("\n"):
+                if "media.name" in line or "node.name" in line:
+                    m = re.search(r'=\s*"(.+)"', line)
+                    if m:
+                        val = m.group(1)
+                        # "BBS radiOO - Artiste - Titre" → "Artiste - Titre"
+                        title_m = re.search(r'BBS radiOO\s*-\s*(.+)', val)
+                        if title_m:
+                            return title_m.group(1).strip()
+                        if "mpv" not in val.lower():
+                            return val
         except Exception as e:
-            log_event(f"IPC host send: {e}", level="debug")
+            log_event(f"wpctl inspect: {e}", level="debug")
+        return None
 
-    def _ipc_command_host(self, *args):
-        self._ipc_send_via_host(json.dumps({"command": list(args)}))
-
-    def _ipc_set_property_host(self, prop: str, value):
-        self._ipc_send_via_host(json.dumps({"command": ["set_property", prop, value]}))
-
-    # ─────────────────────────────
-    # Metadata polling — pactl primary, IPC fallback
-    # ─────────────────────────────
-
-    def _poll_metadata(self):
-        self._polling = True
-        last_title = ""
-        while self._polling and self._is_playing:
-            # Essayer pactl d'abord (extrait depuis le nom du sink)
-            _, title = self._get_pactl_info()
-
-            # Fallback IPC si pactl ne donne rien
-            if not title:
-                title = self._ipc_get_property_host("media-title") or ""
-
-            if isinstance(title, str) and title and title != last_title:
-                last_title = title
-                if self.on_metadata_change:
-                    GLib.idle_add(self.on_metadata_change, title)
-            time.sleep(_METADATA_POLL_INTERVAL)
-
-    def _ipc_get_property_host(self, prop: str) -> str | None:
+    def _get_track_from_ipc(self) -> str | None:
+        """Lit media-title depuis MPV via IPC (flatpak-spawn host python3)."""
         script = (
             "import socket,json;"
             "s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
             "s.settimeout(1);"
             f"s.connect('{_MPV_IPC_SOCKET}');"
-            f"s.sendall(json.dumps({{'command':['get_property','{prop}']}}).encode()+b'\\n');"
+            "s.sendall(json.dumps({'command':['get_property','media-title']}).encode()+b'\\n');"
             "d=s.recv(4096);s.close();"
             "r=json.loads(d.split(b'\\n')[0]);"
-            "print(r['data'] if r.get('error')=='success' else '',end='')"
+            "print(r.get('data','') if r.get('error')=='success' else '',end='')"
         )
         try:
             r = subprocess.run(
@@ -233,9 +226,50 @@ class RadioPlayer:
                 capture_output=True, text=True, timeout=3
             )
             v = r.stdout.strip()
+            if v:
+                log_event(f"IPC media-title: '{v}'", level="debug")
             return v if v else None
-        except Exception:
+        except Exception as e:
+            log_event(f"IPC get property: {e}", level="debug")
             return None
+
+    def _poll_metadata(self):
+        self._polling = True
+        last_title = ""
+        while self._polling and self._is_playing:
+            # wpctl en priorité, IPC en fallback
+            title = self._get_track_from_wpctl() or self._get_track_from_ipc() or ""
+            if title and title != last_title:
+                last_title = title
+                log_event(f"Metadata: '{title}'")
+                if self.on_metadata_change:
+                    GLib.idle_add(self.on_metadata_change, title)
+            time.sleep(_METADATA_POLL_INTERVAL)
+
+    # ─────────────────────────────
+    # IPC MPV via host
+    # ─────────────────────────────
+
+    def _ipc_send_via_host(self, payload: str):
+        safe = payload.replace("\\", "\\\\").replace("'", "\\'")
+        script = (
+            f"import socket as s;"
+            f"c=s.socket(s.AF_UNIX,s.SOCK_STREAM);"
+            f"c.settimeout(1);"
+            f"c.connect('{_MPV_IPC_SOCKET}');"
+            f"c.sendall(b'{safe}\\n');"
+            f"c.close()"
+        )
+        try:
+            Updater.run_host(["python3", "-c", script], quiet=True)
+        except Exception as e:
+            log_event(f"IPC send: {e}", level="debug")
+
+    def _ipc_command_host(self, *args):
+        self._ipc_send_via_host(json.dumps({"command": list(args)}))
+
+    def _ipc_set_property_host(self, prop: str, value):
+        self._ipc_send_via_host(json.dumps({"command": ["set_property", prop, value]}))
 
     # ─────────────────────────────
     # Internal
@@ -298,11 +332,10 @@ class RadioPlayer:
 
             log_event(f"Socket IPC: {'trouvé' if socket_found else 'timeout'}", level="debug")
 
+            # Volume initial via IPC + wpctl (avec délai pour PipeWire)
             if socket_found:
                 self._ipc_set_property_host("volume", self._volume)
-
-            # Appliquer aussi via pactl après que PipeWire enregistre le flux
-            threading.Timer(2.0, self._apply_volume_delayed).start()
+            threading.Timer(2.0, self._apply_volume_on_start).start()
 
             self._status(f"En écoute : {station.get('name', '')}")
             if self.on_station_change:
@@ -334,9 +367,10 @@ class RadioPlayer:
             with self._lock:
                 self._is_playing = False
 
-    def _apply_volume_delayed(self):
+    def _apply_volume_on_start(self):
+        """Applique le volume 2s après le démarrage (PipeWire a le temps d'enregistrer le flux)."""
         if self._is_playing:
-            self._set_volume_pactl(self._volume)
+            self.set_volume(self._volume)
 
     def _status(self, text: str):
         log_event(text)
