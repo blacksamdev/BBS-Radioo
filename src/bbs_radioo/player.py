@@ -16,10 +16,11 @@ _MPV_IPC_SOCKET = os.path.join(
 )
 
 _METADATA_POLL_INTERVAL = 4.0
+_RECONNECT_DELAY        = 5.0   # secondes avant de retenter
+_RECONNECT_MAX          = 3     # tentatives maximum
 
 
 def _run_host(args: list, **kwargs) -> subprocess.CompletedProcess:
-    """Exécute une commande sur le host (via flatpak-spawn ou directement)."""
     cmd = (["flatpak-spawn", "--host"] + args) if IN_FLATPAK else args
     return subprocess.run(cmd, **kwargs)
 
@@ -34,6 +35,7 @@ class RadioPlayer:
         self._current_station: dict | None = None
         self._polling = False
         self._volume = 100
+        self._user_stopped = False  # True si l'utilisateur a stoppé explicitement
 
         self.on_status_change = None
         self.on_station_change = None
@@ -46,16 +48,18 @@ class RadioPlayer:
     def play(self, station: dict):
         with self._lock:
             self._polling = False
+            self._user_stopped = False
             self._stop_current()
             self._is_playing = True
             self._current_station = station
 
         self._status(f"Connexion à {station.get('name', '')}...")
         log_event(f"Play: {station.get('name')} — {station.get('stream_url')}")
-        threading.Thread(target=self._launch, args=(station,), daemon=True).start()
+        threading.Thread(target=self._launch, args=(station, 0), daemon=True).start()
 
     def stop(self):
         self._polling = False
+        self._user_stopped = True
         with self._lock:
             self._stop_current()
             self._is_playing = False
@@ -83,6 +87,7 @@ class RadioPlayer:
     def cleanup(self):
         log_event("Player cleanup…")
         self._polling = False
+        self._user_stopped = True
         self._ipc_command_host("quit")
         time.sleep(0.4)
         with self._lock:
@@ -106,7 +111,6 @@ class RadioPlayer:
     # ─────────────────────────────
 
     def _find_stream_pw(self) -> tuple[str | None, str | None]:
-        """Retourne (node_id, track_title). Essaie pw-dump puis wpctl."""
         result = self._find_stream_pwdump()
         if result[0]:
             return result
@@ -116,7 +120,6 @@ class RadioPlayer:
         try:
             r = _run_host(["pw-dump"], capture_output=True, text=True, timeout=6)
             if not r.stdout.strip():
-                log_event("pw-dump: sortie vide", level="debug")
                 return None, None
 
             nodes = json.loads(r.stdout)
@@ -156,8 +159,6 @@ class RadioPlayer:
                 )
                 return node_id, title
 
-            log_event("pw-dump: aucun stream MPV", level="debug")
-
         except json.JSONDecodeError as e:
             log_event(f"pw-dump JSON: {e}", level="debug")
         except Exception as e:
@@ -170,10 +171,6 @@ class RadioPlayer:
             r = _run_host(["wpctl", "status"], capture_output=True, text=True, timeout=5)
             output = r.stdout
 
-            relevant = [l.strip() for l in output.split("\n")
-                        if l.strip() and ("mpv" in l.lower() or "BBS" in l)]
-            log_event(f"wpctl mpv/BBS: {relevant[:6]}", level="debug")
-
             for line in output.split("\n"):
                 if "BBS radiOO" in line or (
                     re.search(r"mpv", line, re.IGNORECASE) and "vol:" in line
@@ -184,7 +181,6 @@ class RadioPlayer:
                     sid = id_m.group(1)
                     title_m = re.search(r'BBS radiOO\s*-\s*(.+?)(?:\s*[\[|]|$)', line)
                     title = title_m.group(1).strip() if title_m else None
-                    log_event(f"wpctl: stream #{sid} title='{title}'", level="debug")
                     return sid, title
 
         except Exception as e:
@@ -314,9 +310,18 @@ class RadioPlayer:
         except Exception:
             pass
 
-    def _launch(self, station: dict):
+    def _launch(self, station: dict, attempt: int):
+        """
+        Lance MPV pour la station donnée.
+        En cas de coupure réseau (stream terminé sans user_stopped),
+        retente jusqu'à _RECONNECT_MAX fois avec un délai.
+        """
         station_id = station.get("id", "")
         try:
+            if attempt > 0:
+                log_event(f"Reconnexion {attempt}/{_RECONNECT_MAX} pour {station.get('name')}…")
+                self._status(f"Reconnexion… ({attempt}/{_RECONNECT_MAX})")
+
             proc = Updater.play_stream(
                 station["stream_url"],
                 ipc_socket_path=_MPV_IPC_SOCKET,
@@ -351,7 +356,8 @@ class RadioPlayer:
 
             threading.Timer(2.0, lambda: self._apply_volume_if_current(station_id)).start()
 
-            self._status(f"En écoute : {station.get('name', '')}")
+            if attempt == 0:
+                self._status(f"En écoute : {station.get('name', '')}")
             if self.on_station_change:
                 GLib.idle_add(self.on_station_change, station)
 
@@ -365,17 +371,52 @@ class RadioPlayer:
             with self._lock:
                 if proc in self._all_processes:
                     self._all_processes.remove(proc)
-                if self._current_station and self._current_station.get("id") == station_id:
-                    self._is_playing = False
-                else:
+
+                # Coupure réseau ou fin inattendue ?
+                is_our_station = (
+                    self._current_station and
+                    self._current_station.get("id") == station_id
+                )
+                if not is_our_station:
                     log_event("_launch end: station changée", level="debug")
                     return
 
-            self._status("Stream terminé.")
-            if self.on_station_change:
-                GLib.idle_add(self.on_station_change, None)
-            if self.on_metadata_change:
-                GLib.idle_add(self.on_metadata_change, "")
+                if self._user_stopped:
+                    # Arrêt volontaire
+                    self._is_playing = False
+                    self._status("Arrêté.")
+                    if self.on_station_change:
+                        GLib.idle_add(self.on_station_change, None)
+                    if self.on_metadata_change:
+                        GLib.idle_add(self.on_metadata_change, "")
+                    return
+
+            # ── Coupure réseau détectée — tentative de reconnexion ──
+            if attempt < _RECONNECT_MAX:
+                log_event(
+                    f"Stream interrompu pour {station.get('name')} — "
+                    f"reconnexion dans {_RECONNECT_DELAY}s "
+                    f"(tentative {attempt + 1}/{_RECONNECT_MAX})"
+                )
+                self._status(f"Connexion perdue. Reconnexion dans {int(_RECONNECT_DELAY)}s…")
+                time.sleep(_RECONNECT_DELAY)
+
+                # Vérifier que l'utilisateur n'a pas changé de station entre-temps
+                if (
+                    not self._user_stopped and
+                    self._current_station and
+                    self._current_station.get("id") == station_id
+                ):
+                    self._launch(station, attempt + 1)
+            else:
+                log_event(f"Abandon reconnexion pour {station.get('name')} après {_RECONNECT_MAX} tentatives.")
+                self._status("Stream terminé — reconnexion échouée.")
+                with self._lock:
+                    self._is_playing = False
+                if self.on_station_change:
+                    GLib.idle_add(self.on_station_change, None)
+                if self.on_metadata_change:
+                    GLib.idle_add(self.on_metadata_change, "")
 
         except Exception as exc:
             log_event(f"Player error: {exc}")

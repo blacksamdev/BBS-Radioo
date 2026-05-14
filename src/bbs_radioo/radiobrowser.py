@@ -23,7 +23,6 @@ def _get(path: str, params: dict = None) -> list:
 
 
 def _parse_bitrate(value) -> int:
-    """Convertit la valeur bitrate de l'API en int — gère 'highest', None, etc."""
     try:
         return int(value or 0)
     except (ValueError, TypeError):
@@ -76,3 +75,62 @@ def get_stations_for_themes(theme_ids: list[str], theme_map: dict) -> list[dict]
                     results.append(station)
 
     return results
+
+
+def search_by_name(query: str, limit: int = 40) -> list[dict]:
+    """Recherche des stations par nom dans RadioBrowser."""
+    if not query or not query.strip():
+        return []
+    raw = _get(
+        "/stations/search",
+        {
+            "name": query.strip(),
+            "hidebroken": "true",
+            "order": "votes",
+            "reverse": "true",
+            "limit": str(limit),
+        },
+    )
+    results = []
+    seen: set[str] = set()
+    for s in raw:
+        uid = s.get("stationuuid", "")
+        if uid in seen:
+            continue
+        seen.add(uid)
+        d = _station_to_dict(s)
+        if d:
+            results.append(d)
+    return results
+
+
+def search_by_country(country: str, limit: int = 60) -> list[dict]:
+    """Retourne les stations d'un pays donné, triées par votes."""
+    if not country:
+        return []
+    raw = _get(
+        "/stations/bycountry/" + urllib.parse.quote(country),
+        {
+            "hidebroken": "true",
+            "order": "votes",
+            "reverse": "true",
+            "limit": str(limit),
+        },
+    )
+    results = []
+    seen: set[str] = set()
+    for s in raw:
+        uid = s.get("stationuuid", "")
+        if uid in seen:
+            continue
+        seen.add(uid)
+        d = _station_to_dict(s)
+        if d:
+            results.append(d)
+    return results
+
+
+def get_countries() -> list[str]:
+    """Retourne la liste des pays disponibles dans RadioBrowser."""
+    raw = _get("/countries", {"order": "stationcount", "reverse": "true"})
+    return [c.get("name", "") for c in raw if c.get("name")]

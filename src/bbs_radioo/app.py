@@ -11,6 +11,8 @@ from gi.repository import Gtk, WebKit, GLib
 from bbs_radioo.logging_utils import log_event
 from bbs_radioo.player import RadioPlayer
 from bbs_radioo.station_store import StationStore
+from bbs_radioo.blacklist_store import BlacklistStore
+from bbs_radioo.custom_store import CustomStore
 from bbs_radioo.theme_map import THEME_BY_ID
 from bbs_radioo.sources import curated, somafm, radiobrowser
 
@@ -69,12 +71,14 @@ class RadiooApp(Gtk.Application):
     def __init__(self, state_dir: str):
         super().__init__(application_id="io.github.blacksamdev.Radioo")
         self.connect("activate", self.on_activate)
-        self.state_dir = state_dir
-        self.settings = _load_settings()
-        self.player = RadioPlayer()
-        self.store = StationStore()
+        self.state_dir   = state_dir
+        self.settings    = _load_settings()
+        self.player      = RadioPlayer()
+        self.store       = StationStore()
+        self.blacklist   = BlacklistStore()
+        self.custom      = CustomStore()
         self._window_created = False
-        self._shutting_down = False
+        self._shutting_down  = False
 
     def on_activate(self, app):
         try:
@@ -151,6 +155,8 @@ class RadiooApp(Gtk.Application):
         vol = self.settings.get("volume", 100)
         self._js(f"document.getElementById('vol').value={vol}; setVol({vol});")
         self._push_favorites()
+        self._push_blacklist()
+        self._push_custom()
         threading.Thread(target=self._fetch_section, args=("trending",), daemon=True).start()
 
     # ─────────────────────────────
@@ -168,24 +174,68 @@ class RadiooApp(Gtk.Application):
 
         if action == "play":
             self._do_play(msg.get("station"))
+
         elif action == "stop":
             self.player.stop()
+
         elif action == "set_volume":
             vol = max(0, min(100, int(msg.get("volume", 100))))
             self.player.set_volume(vol)
             self.settings["volume"] = vol
             _save_settings(self.settings)
+
         elif action == "toggle_favorite":
             station = msg.get("station")
             if station:
                 self.store.toggle(station)
                 self._push_favorites()
+
+        elif action == "toggle_blacklist":
+            station = msg.get("station")
+            if station:
+                added = self.blacklist.toggle(station)
+                self._push_blacklist()
+                # Si ajouté à la liste noire et en cours de lecture → stopper
+                if added and self.player.current_station():
+                    cur = self.player.current_station()
+                    if cur and cur.get("id") == station.get("id"):
+                        self.player.stop()
+                log_event(f"Blacklist {'ajout' if added else 'retrait'}: {station.get('name')}")
+
+        elif action == "add_custom":
+            name       = msg.get("name", "")
+            stream_url = msg.get("stream_url", "")
+            country    = msg.get("country", "")
+            if stream_url:
+                station = self.custom.add(name, stream_url, country)
+                self._push_custom()
+                log_event(f"Station custom ajoutée: {station.get('name')}")
+
+        elif action == "remove_custom":
+            station_id = msg.get("station_id", "")
+            if station_id:
+                self.custom.remove(station_id)
+                self._push_custom()
+
         elif action == "load_section":
             section = msg.get("section", "")
             if section:
                 threading.Thread(
                     target=self._fetch_section, args=(section,), daemon=True
                 ).start()
+
+        elif action == "search":
+            query   = msg.get("query", "").strip()
+            country = msg.get("country", "").strip()
+            if query:
+                threading.Thread(
+                    target=self._fetch_search, args=(query,), daemon=True
+                ).start()
+            elif country:
+                threading.Thread(
+                    target=self._fetch_country, args=(country,), daemon=True
+                ).start()
+
         else:
             log_event(f"Action inconnue: {action}", level="debug")
 
@@ -196,38 +246,45 @@ class RadiooApp(Gtk.Application):
     def _do_play(self, station: dict):
         if not station or not station.get("stream_url"):
             return
+        if self.blacklist.is_blacklisted(station.get("id", "")):
+            log_event(f"Station masquée ignorée: {station.get('name')}", level="debug")
+            return
         self.player.play(station)
+
+    def _filter(self, stations: list[dict]) -> list[dict]:
+        """Exclut les stations masquées d'une liste."""
+        return self.blacklist.filter(stations)
 
     def _fetch_section(self, section: str):
 
-        # ── Sans pub : curated + SomaFM ──
-        # Les deux try/except sont séparés pour que curated reste visible
-        # même si SomaFM échoue.
         if section == "adfree":
             results = []
-
             try:
                 results = curated.get_stations_for_themes([])
-                log_event(f"Adfree curated: {len(results)} stations")
             except Exception as exc:
                 log_event(f"Erreur curated adfree: {exc}")
 
             seen_ids = {s["id"] for s in results}
-
             try:
-                soma = somafm.get_stations_for_themes([], THEME_BY_ID)
-                for s in soma:
+                for s in somafm.get_stations_for_themes([], THEME_BY_ID):
                     if s["id"] not in seen_ids:
                         seen_ids.add(s["id"])
                         results.append(s)
-                log_event(f"Adfree total: {len(results)} stations (dont {len(soma)} SomaFM)")
+                log_event(f"Adfree: {len(results)} stations")
             except Exception as exc:
                 log_event(f"Erreur somafm adfree: {exc}")
 
-            GLib.idle_add(self._push_stations, results)
+            GLib.idle_add(self._push_stations, self._filter(results))
             return
 
-        # ── Sections RadioBrowser ──
+        if section == "custom":
+            GLib.idle_add(self._push_stations, self.custom.all())
+            return
+
+        if section == "blacklisted":
+            GLib.idle_add(self._push_stations, self.blacklist.all())
+            return
+
         params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["popular"])
         try:
             raw = radiobrowser._get("/stations", params)
@@ -245,7 +302,27 @@ class RadiooApp(Gtk.Application):
             if d:
                 stations.append(d)
 
-        GLib.idle_add(self._push_stations, stations)
+        GLib.idle_add(self._push_stations, self._filter(stations))
+
+    def _fetch_search(self, query: str):
+        """Recherche par nom dans RadioBrowser."""
+        try:
+            results = radiobrowser.search_by_name(query)
+            log_event(f"Search '{query}': {len(results)} résultats")
+        except Exception as exc:
+            log_event(f"Erreur search '{query}': {exc}")
+            results = []
+        GLib.idle_add(self._push_stations, self._filter(results))
+
+    def _fetch_country(self, country: str):
+        """Stations par pays via RadioBrowser."""
+        try:
+            results = radiobrowser.search_by_country(country)
+            log_event(f"Country '{country}': {len(results)} stations")
+        except Exception as exc:
+            log_event(f"Erreur country '{country}': {exc}")
+            results = []
+        GLib.idle_add(self._push_stations, self._filter(results))
 
     # ─────────────────────────────
     # Bridge Python → JS
@@ -263,6 +340,16 @@ class RadiooApp(Gtk.Application):
         favs    = self.store.all()
         payload = json.dumps(favs, ensure_ascii=False)
         self._js(f"window.onFavoritesLoaded({payload})")
+
+    def _push_blacklist(self):
+        bl      = self.blacklist.all()
+        payload = json.dumps(bl, ensure_ascii=False)
+        self._js(f"window.onBlacklistLoaded({payload})")
+
+    def _push_custom(self):
+        custom  = self.custom.all()
+        payload = json.dumps(custom, ensure_ascii=False)
+        self._js(f"window.onCustomLoaded({payload})")
 
     def _cb_status(self, text: str):
         self._js(f"window.onStatusChange({json.dumps(text)})")
