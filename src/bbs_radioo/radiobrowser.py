@@ -6,8 +6,7 @@ import urllib.parse
 
 
 _API_BASE = "https://de1.api.radio-browser.info/json"
-_HEADERS = {"User-Agent": "BBS-radiOO/1.0"}
-_MAX_PER_TAG = 20
+_HEADERS  = {"User-Agent": "BBS-radiOO/1.0"}
 
 
 def _get(path: str, params: dict = None) -> list:
@@ -34,65 +33,24 @@ def _station_to_dict(s: dict) -> dict | None:
     if not url:
         return None
     return {
-        "id": f"rb-{s.get('stationuuid', '')}",
-        "name": s.get("name", "").strip(),
-        "stream_url": url,
-        "favicon": s.get("favicon", ""),
-        "homepage": s.get("homepage", ""),
+        "id":          f"rb-{s.get('stationuuid', '')}",
+        "name":        s.get("name", "").strip(),
+        "stream_url":  url,
+        "favicon":     s.get("favicon", ""),
+        "homepage":    s.get("homepage", ""),
         "description": s.get("tags", ""),
-        "tags": [t.strip() for t in s.get("tags", "").split(",") if t.strip()],
-        "bitrate": _parse_bitrate(s.get("bitrate")),
-        "codec": s.get("codec", "").lower(),
-        "votes": s.get("votes", 0),
-        "country": s.get("country", ""),
-        "language": s.get("language", ""),
-        "source": "radiobrowser",
+        "tags":        [t.strip() for t in s.get("tags", "").split(",") if t.strip()],
+        "bitrate":     _parse_bitrate(s.get("bitrate")),
+        "codec":       s.get("codec", "").lower(),
+        "votes":       s.get("votes", 0),
+        "country":     s.get("country", ""),
+        "language":    s.get("language", ""),
+        "source":      "radiobrowser",
     }
 
 
-def get_stations_for_themes(theme_ids: list[str], theme_map: dict) -> list[dict]:
-    """Retourne les stations radio-browser pour les thèmes sélectionnés."""
-    seen_ids: set[str] = set()
-    results = []
-
-    for tid in theme_ids:
-        theme = theme_map.get(tid, {})
-        for tag in theme.get("radiobrowser_tags", []):
-            stations = _get("/stations/bytag/" + urllib.parse.quote(tag), {
-                "hidebroken": "true",
-                "order": "votes",
-                "reverse": "true",
-                "limit": str(_MAX_PER_TAG),
-                "has_extended_info": "false",
-            })
-            for s in stations:
-                uid = s.get("stationuuid", "")
-                if uid in seen_ids:
-                    continue
-                seen_ids.add(uid)
-                station = _station_to_dict(s)
-                if station:
-                    results.append(station)
-
-    return results
-
-
-def search_by_name(query: str, limit: int = 40) -> list[dict]:
-    """Recherche des stations par nom dans RadioBrowser."""
-    if not query or not query.strip():
-        return []
-    raw = _get(
-        "/stations/search",
-        {
-            "name": query.strip(),
-            "hidebroken": "true",
-            "order": "votes",
-            "reverse": "true",
-            "limit": str(limit),
-        },
-    )
-    results = []
-    seen: set[str] = set()
+def _parse_results(raw: list) -> list[dict]:
+    seen, results = set(), []
     for s in raw:
         uid = s.get("stationuuid", "")
         if uid in seen:
@@ -102,35 +60,57 @@ def search_by_name(query: str, limit: int = 40) -> list[dict]:
         if d:
             results.append(d)
     return results
+
+
+# ─────────────────────────────
+# API publique
+# ─────────────────────────────
+
+def search_by_name(query: str, limit: int = 40) -> list[dict]:
+    """Recherche de stations par nom."""
+    if not query.strip():
+        return []
+    return _parse_results(_get("/stations/search", {
+        "name":        query.strip(),
+        "hidebroken":  "true",
+        "order":       "votes",
+        "reverse":     "true",
+        "limit":       str(limit),
+    }))
+
+
+def search_by_tag(tag: str, limit: int = 60) -> list[dict]:
+    """
+    Recherche de stations par tag (genre musical).
+    Utilise /stations/search avec tagList pour une correspondance exacte.
+    """
+    if not tag.strip():
+        return []
+    return _parse_results(_get("/stations/search", {
+        "tagList":     tag.strip().lower(),
+        "hidebroken":  "true",
+        "order":       "votes",
+        "reverse":     "true",
+        "limit":       str(limit),
+    }))
 
 
 def search_by_country(country: str, limit: int = 60) -> list[dict]:
-    """Retourne les stations d'un pays donné, triées par votes."""
-    if not country:
+    """
+    Recherche de stations par pays.
+    Utilise /stations/search?country= (plus flexible que /bycountry/).
+    """
+    if not country.strip():
         return []
-    raw = _get(
-        "/stations/bycountry/" + urllib.parse.quote(country),
-        {
-            "hidebroken": "true",
-            "order": "votes",
-            "reverse": "true",
-            "limit": str(limit),
-        },
-    )
-    results = []
-    seen: set[str] = set()
-    for s in raw:
-        uid = s.get("stationuuid", "")
-        if uid in seen:
-            continue
-        seen.add(uid)
-        d = _station_to_dict(s)
-        if d:
-            results.append(d)
-    return results
+    return _parse_results(_get("/stations/search", {
+        "country":     country.strip(),
+        "hidebroken":  "true",
+        "order":       "votes",
+        "reverse":     "true",
+        "limit":       str(limit),
+    }))
 
 
-def get_countries() -> list[str]:
-    """Retourne la liste des pays disponibles dans RadioBrowser."""
-    raw = _get("/countries", {"order": "stationcount", "reverse": "true"})
-    return [c.get("name", "") for c in raw if c.get("name")]
+def get_stations_for_section(params: dict) -> list[dict]:
+    """Stations pour les sections trending/popular."""
+    return _parse_results(_get("/stations", params))

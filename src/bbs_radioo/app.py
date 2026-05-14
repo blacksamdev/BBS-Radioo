@@ -34,10 +34,6 @@ _WEBKIT_SETTINGS = [
 ]
 
 
-# ─────────────────────────────
-# Settings
-# ─────────────────────────────
-
 def _load_settings() -> dict:
     defaults = {"volume": 100}
     try:
@@ -62,21 +58,17 @@ def _save_settings(s: dict):
         pass
 
 
-# ─────────────────────────────
-# App
-# ─────────────────────────────
-
 class RadiooApp(Gtk.Application):
 
     def __init__(self, state_dir: str):
         super().__init__(application_id="io.github.blacksamdev.Radioo")
         self.connect("activate", self.on_activate)
-        self.state_dir   = state_dir
-        self.settings    = _load_settings()
-        self.player      = RadioPlayer()
-        self.store       = StationStore()
-        self.blacklist   = BlacklistStore()
-        self.custom      = CustomStore()
+        self.state_dir  = state_dir
+        self.settings   = _load_settings()
+        self.player     = RadioPlayer()
+        self.store      = StationStore()
+        self.blacklist  = BlacklistStore()
+        self.custom     = CustomStore()
         self._window_created = False
         self._shutting_down  = False
 
@@ -118,7 +110,6 @@ class RadiooApp(Gtk.Application):
         self.webview.set_vexpand(True)
         self.webview.connect("load-changed", self._on_load_changed)
         self.webview.load_uri(f"file://{_UI_HTML}")
-
         self.win.set_child(self.webview)
         self.win.present()
 
@@ -127,10 +118,6 @@ class RadiooApp(Gtk.Application):
         self.player.on_metadata_change = self._cb_metadata
         self.player.set_volume(self.settings.get("volume", 100))
         log_event("Fenêtre créée.")
-
-    # ─────────────────────────────
-    # Shutdown
-    # ─────────────────────────────
 
     def _on_close_request(self, _win) -> bool:
         if self._shutting_down:
@@ -144,17 +131,13 @@ class RadiooApp(Gtk.Application):
         os._exit(0)
         return True
 
-    # ─────────────────────────────
-    # WebKit
-    # ─────────────────────────────
-
     def _on_load_changed(self, webview, event):
         if event != WebKit.LoadEvent.FINISHED:
             return
         log_event("Page chargée.")
         vol = self.settings.get("volume", 100)
         self._js(f"document.getElementById('vol').value={vol}; setVol({vol});")
-        self._push_favorites()
+        self._push_favorites_tree()
         self._push_blacklist()
         self._push_custom()
         threading.Thread(target=self._fetch_section, args=("trending",), daemon=True).start()
@@ -172,36 +155,69 @@ class RadiooApp(Gtk.Application):
         action = msg.get("action", "")
         log_event(f"JS→Py: {action}", level="debug")
 
+        # ── Playback ──
         if action == "play":
             self._do_play(msg.get("station"))
-
         elif action == "stop":
             self.player.stop()
-
         elif action == "set_volume":
             vol = max(0, min(100, int(msg.get("volume", 100))))
             self.player.set_volume(vol)
             self.settings["volume"] = vol
             _save_settings(self.settings)
 
-        elif action == "toggle_favorite":
-            station = msg.get("station")
+        # ── Favoris ──
+        elif action == "add_to_folder":
+            station   = msg.get("station")
+            folder_id = msg.get("folder_id")  # None = sans dossier
             if station:
-                self.store.toggle(station)
-                self._push_favorites()
+                self.store.add_to_folder(station, folder_id)
+                self._push_favorites_tree()
 
+        elif action == "remove_favorite":
+            station_id = msg.get("station_id", "")
+            if station_id:
+                self.store.remove(station_id)
+                self._push_favorites_tree()
+
+        # ── Dossiers ──
+        elif action == "create_folder":
+            name = msg.get("name", "Nouveau dossier")
+            folder = self.store.create_folder(name)
+            self._push_favorites_tree()
+            log_event(f"Dossier créé: {folder['name']}")
+
+        elif action == "rename_folder":
+            self.store.rename_folder(msg.get("folder_id", ""), msg.get("name", ""))
+            self._push_favorites_tree()
+
+        elif action == "delete_folder":
+            self.store.delete_folder(
+                msg.get("folder_id", ""),
+                keep_stations=msg.get("keep_stations", True)
+            )
+            self._push_favorites_tree()
+
+        elif action == "move_station":
+            self.store.move_station(
+                msg.get("station_id", ""),
+                msg.get("from_folder_id"),  # None = sans dossier
+                msg.get("to_folder_id"),    # None = sans dossier
+            )
+            self._push_favorites_tree()
+
+        # ── Blacklist ──
         elif action == "toggle_blacklist":
             station = msg.get("station")
             if station:
                 added = self.blacklist.toggle(station)
                 self._push_blacklist()
-                # Si ajouté à la liste noire et en cours de lecture → stopper
                 if added and self.player.current_station():
                     cur = self.player.current_station()
                     if cur and cur.get("id") == station.get("id"):
                         self.player.stop()
-                log_event(f"Blacklist {'ajout' if added else 'retrait'}: {station.get('name')}")
 
+        # ── Stations custom ──
         elif action == "add_custom":
             name       = msg.get("name", "")
             stream_url = msg.get("stream_url", "")
@@ -209,14 +225,13 @@ class RadiooApp(Gtk.Application):
             if stream_url:
                 station = self.custom.add(name, stream_url, country)
                 self._push_custom()
-                log_event(f"Station custom ajoutée: {station.get('name')}")
+                log_event(f"Station custom: {station.get('name')}")
 
         elif action == "remove_custom":
-            station_id = msg.get("station_id", "")
-            if station_id:
-                self.custom.remove(station_id)
-                self._push_custom()
+            self.custom.remove(msg.get("station_id", ""))
+            self._push_custom()
 
+        # ── Sections & recherche ──
         elif action == "load_section":
             section = msg.get("section", "")
             if section:
@@ -227,6 +242,7 @@ class RadiooApp(Gtk.Application):
         elif action == "search":
             query   = msg.get("query", "").strip()
             country = msg.get("country", "").strip()
+            tag     = msg.get("tag", "").strip()
             if query:
                 threading.Thread(
                     target=self._fetch_search, args=(query,), daemon=True
@@ -234,6 +250,10 @@ class RadiooApp(Gtk.Application):
             elif country:
                 threading.Thread(
                     target=self._fetch_country, args=(country,), daemon=True
+                ).start()
+            elif tag:
+                threading.Thread(
+                    target=self._fetch_tag, args=(tag,), daemon=True
                 ).start()
 
         else:
@@ -247,33 +267,28 @@ class RadiooApp(Gtk.Application):
         if not station or not station.get("stream_url"):
             return
         if self.blacklist.is_blacklisted(station.get("id", "")):
-            log_event(f"Station masquée ignorée: {station.get('name')}", level="debug")
             return
         self.player.play(station)
 
     def _filter(self, stations: list[dict]) -> list[dict]:
-        """Exclut les stations masquées d'une liste."""
         return self.blacklist.filter(stations)
 
     def _fetch_section(self, section: str):
-
         if section == "adfree":
             results = []
             try:
                 results = curated.get_stations_for_themes([])
             except Exception as exc:
-                log_event(f"Erreur curated adfree: {exc}")
-
-            seen_ids = {s["id"] for s in results}
+                log_event(f"Erreur curated: {exc}")
+            seen = {s["id"] for s in results}
             try:
                 for s in somafm.get_stations_for_themes([], THEME_BY_ID):
-                    if s["id"] not in seen_ids:
-                        seen_ids.add(s["id"])
+                    if s["id"] not in seen:
+                        seen.add(s["id"])
                         results.append(s)
-                log_event(f"Adfree: {len(results)} stations")
             except Exception as exc:
-                log_event(f"Erreur somafm adfree: {exc}")
-
+                log_event(f"Erreur somafm: {exc}")
+            log_event(f"Adfree: {len(results)} stations")
             GLib.idle_add(self._push_stations, self._filter(results))
             return
 
@@ -287,40 +302,36 @@ class RadiooApp(Gtk.Application):
 
         params = _SECTION_PARAMS.get(section, _SECTION_PARAMS["popular"])
         try:
-            raw = radiobrowser._get("/stations", params)
+            stations = radiobrowser.get_stations_for_section(params)
         except Exception as exc:
-            log_event(f"Erreur fetch section {section}: {exc}")
-            raw = []
-
-        seen, stations = set(), []
-        for s in raw:
-            uid = s.get("stationuuid", "")
-            if uid in seen:
-                continue
-            seen.add(uid)
-            d = radiobrowser._station_to_dict(s)
-            if d:
-                stations.append(d)
-
+            log_event(f"Erreur fetch {section}: {exc}")
+            stations = []
         GLib.idle_add(self._push_stations, self._filter(stations))
 
     def _fetch_search(self, query: str):
-        """Recherche par nom dans RadioBrowser."""
         try:
             results = radiobrowser.search_by_name(query)
             log_event(f"Search '{query}': {len(results)} résultats")
         except Exception as exc:
-            log_event(f"Erreur search '{query}': {exc}")
+            log_event(f"Erreur search: {exc}")
             results = []
         GLib.idle_add(self._push_stations, self._filter(results))
 
     def _fetch_country(self, country: str):
-        """Stations par pays via RadioBrowser."""
         try:
             results = radiobrowser.search_by_country(country)
             log_event(f"Country '{country}': {len(results)} stations")
         except Exception as exc:
-            log_event(f"Erreur country '{country}': {exc}")
+            log_event(f"Erreur country: {exc}")
+            results = []
+        GLib.idle_add(self._push_stations, self._filter(results))
+
+    def _fetch_tag(self, tag: str):
+        try:
+            results = radiobrowser.search_by_tag(tag)
+            log_event(f"Tag '{tag}': {len(results)} stations")
+        except Exception as exc:
+            log_event(f"Erreur tag: {exc}")
             results = []
         GLib.idle_add(self._push_stations, self._filter(results))
 
@@ -336,10 +347,10 @@ class RadiooApp(Gtk.Application):
         self._js(f"window.onStationsLoaded({payload})")
         return False
 
-    def _push_favorites(self):
-        favs    = self.store.all()
-        payload = json.dumps(favs, ensure_ascii=False)
-        self._js(f"window.onFavoritesLoaded({payload})")
+    def _push_favorites_tree(self):
+        tree    = self.store.get_tree()
+        payload = json.dumps(tree, ensure_ascii=False)
+        self._js(f"window.onFavoritesTree({payload})")
 
     def _push_blacklist(self):
         bl      = self.blacklist.all()
