@@ -19,17 +19,15 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:var(--bg-4);border-radius:2px}
 .app{display:flex;height:100vh}
 
-/* ═══ SIDEBAR ═══ */
+/* SIDEBAR */
 .sidebar{width:210px;min-width:210px;background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;padding-bottom:16px}
 .sidebar-logo{padding:16px 14px 13px;display:flex;align-items:center;gap:11px;border-bottom:1px solid var(--border);margin-bottom:8px}
 .logo-svg{width:38px;height:38px;flex-shrink:0}
-.logo-text{font-size:15px;font-weight:800;color:var(--t1);line-height:1}
-.logo-text em{font-style:normal;color:var(--accent)}
+.logo-text{font-size:15px;font-weight:800;color:var(--t1);line-height:1}.logo-text em{font-style:normal;color:var(--accent)}
 .nav-section{padding:0 10px 4px}
 .nav-label{font-size:9.5px;font-weight:700;color:var(--t3);letter-spacing:1.6px;text-transform:uppercase;padding:12px 6px 5px}
 .nav-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;color:var(--t2);font-size:13px;font-weight:500;transition:background .12s,color .12s;user-select:none}
-.nav-item:hover{background:var(--bg-3);color:var(--t1)}
-.nav-item.active{background:var(--accent-d);color:var(--accent)}
+.nav-item:hover{background:var(--bg-3);color:var(--t1)}.nav-item.active{background:var(--accent-d);color:var(--accent)}
 .nav-item.adfree:hover{color:var(--green)}.nav-item.adfree.active{background:rgba(34,197,94,.1);color:var(--green)}
 .nav-item.danger:hover{color:var(--red-soft)}.nav-item.danger.active{background:rgba(255,96,96,.1);color:var(--red-soft)}
 .nav-icon{width:16px;height:16px;flex-shrink:0;opacity:.6}.nav-item.active .nav-icon{opacity:1}
@@ -38,32 +36,29 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 .nav-item.adfree.active .nav-badge{background:var(--green);color:#000}
 .nav-item.danger.active .nav-badge{background:var(--red-soft);color:#000}
 
-/* Favoris + dossiers */
-.nav-fav-header{display:flex;align-items:center;gap:0;padding:0 10px}
-.nav-fav-item{flex:1;display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;color:var(--t2);font-size:13px;font-weight:500;transition:background .12s,color .12s;user-select:none}
-.nav-fav-item:hover{background:var(--bg-3);color:var(--t1)}
-.nav-fav-item.active{background:var(--accent-d);color:var(--accent)}
-.nav-fav-item.active .nav-icon{opacity:1}
-.nav-fav-add{background:none;border:none;color:var(--t3);cursor:pointer;padding:4px 7px;border-radius:6px;font-size:16px;line-height:1;transition:color .12s,background .12s;flex-shrink:0}
+/* Favoris + bouton dossier */
+.nav-fav-row{display:flex;align-items:center;padding:0 10px}
+.nav-fav-btn{flex:1;display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;color:var(--t2);font-size:13px;font-weight:500;transition:background .12s,color .12s;user-select:none}
+.nav-fav-btn:hover{background:var(--bg-3);color:var(--t1)}.nav-fav-btn.active{background:var(--accent-d);color:var(--accent)}
+.nav-fav-btn.active .nav-icon{opacity:1}
+.nav-fav-add{background:none;border:none;color:var(--t3);cursor:pointer;padding:5px 7px;border-radius:6px;font-size:15px;line-height:1;transition:color .12s,background .12s;flex-shrink:0;title:"Nouveau dossier"}
 .nav-fav-add:hover{color:var(--accent);background:var(--accent-d)}
-.nav-folders{padding:0 10px 0;display:none}.nav-folders.visible{display:block}
 
-/* Dossier dans sidebar — drop target */
-.folder-item{display:flex;align-items:center;gap:7px;padding:5px 9px 5px 26px;border-radius:7px;cursor:pointer;color:var(--t2);font-size:12px;font-weight:500;transition:background .12s,color .12s,border .12s;border:1px solid transparent;position:relative}
-.folder-item:hover{background:var(--bg-3);color:var(--t1)}
-.folder-item.active{background:var(--accent-d);color:var(--accent)}
-.folder-item.drag-over{background:var(--accent-d);border-color:var(--accent);color:var(--accent)}
+/* Dossiers */
+.nav-folders{padding:0 10px;display:none}.nav-folders.visible{display:block}
+.folder-item{display:flex;align-items:center;gap:7px;padding:5px 9px 5px 26px;border-radius:7px;cursor:pointer;color:var(--t2);font-size:12px;font-weight:500;transition:background .12s,color .12s;border:1px solid transparent}
+.folder-item:hover{background:var(--bg-3);color:var(--t1)}.folder-item.active{background:var(--accent-d);color:var(--accent)}
+.folder-item.drag-over{background:var(--accent-d);border-color:var(--accent)}
 .folder-item-name{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .folder-item-count{font-size:9.5px;font-family:var(--mono);color:var(--t3);flex-shrink:0}
 .folder-actions{display:none;align-items:center;margin-left:4px}
 .folder-item:hover .folder-actions{display:flex}
 .fld-btn{background:none;border:none;cursor:pointer;padding:1px 3px;border-radius:3px;color:var(--t3);font-size:11px;transition:color .12s}.fld-btn:hover{color:var(--t1)}
-.folder-unfiled{display:flex;align-items:center;padding:5px 9px 5px 26px;border-radius:7px;cursor:pointer;color:var(--t3);font-size:11px;font-style:italic;transition:background .12s,color .12s,border .12s;border:1px solid transparent}
-.folder-unfiled:hover{background:var(--bg-3);color:var(--t2)}
-.folder-unfiled.active{background:var(--accent-d);color:var(--accent)}
+.folder-unfiled{padding:5px 9px 5px 26px;border-radius:7px;cursor:pointer;color:var(--t3);font-size:11px;font-style:italic;transition:background .12s,color .12s;border:1px solid transparent}
+.folder-unfiled:hover{background:var(--bg-3);color:var(--t2)}.folder-unfiled.active{background:var(--accent-d);color:var(--accent)}
 .folder-unfiled.drag-over{background:var(--accent-d);border-color:var(--accent)}
 
-/* ═══ MAIN ═══ */
+/* MAIN */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .main-header{padding:14px 22px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
 .main-title-row{display:flex;flex-direction:column}
@@ -81,19 +76,24 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 .main-content{flex:1;overflow-y:auto;padding:16px 22px 28px}
 .station-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:9px}
 
-/* Cards — draggable */
+/* Cards — bouton ⭐ intégré */
 .station-card{display:flex;align-items:center;gap:11px;background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;cursor:pointer;transition:background .15s,border-color .15s,transform .15s;position:relative;overflow:hidden}
 .station-card:hover{background:var(--bg-3);border-color:var(--border-h);transform:translateY(-1px)}
 .station-card.playing{border-color:var(--accent);background:var(--accent-d)}
 .station-card.playing::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
-.station-card.dragging{opacity:.5;transform:scale(.98)}
-.station-logo{width:50px;height:50px;border-radius:8px;flex-shrink:0;overflow:hidden;position:relative}
+.station-card.dragging{opacity:.5}
+.station-logo{width:46px;height:46px;border-radius:8px;flex-shrink:0;overflow:hidden;position:relative}
 .station-logo img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;z-index:1}
-.logo-gen{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:rgba(255,255,255,.88);letter-spacing:-.5px}
+.logo-gen{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:rgba(255,255,255,.88);letter-spacing:-.5px}
 .station-info{flex:1;min-width:0}
-.station-name{font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:3px}
+.station-name{font-size:13px;font-weight:700;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px}
 .station-desc{font-size:11px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.station-country{font-size:10.5px;color:var(--t3);font-family:var(--mono);margin-top:3px;display:block}
+.station-country{font-size:10px;color:var(--t3);font-family:var(--mono);margin-top:2px;display:block}
+.card-actions{display:flex;align-items:center;gap:4px;flex-shrink:0}
+/* Bouton ⭐ sur la carte */
+.card-fav{width:26px;height:26px;border-radius:50%;background:none;border:1px solid transparent;color:var(--t3);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
+.card-fav:hover{border-color:var(--gold);color:var(--gold);background:rgba(240,176,48,.1)}
+.card-fav.on{color:var(--gold);border-color:rgba(240,176,48,.3);background:rgba(240,176,48,.08)}
 .play-btn{width:30px;height:30px;border-radius:50%;background:var(--bg-4);border:1px solid var(--border);color:var(--t2);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all .15s}
 .play-btn:hover,.station-card.playing .play-btn{background:var(--accent);border-color:var(--accent);color:#fff}
 
@@ -105,7 +105,7 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 .empty-cta:hover{background:var(--accent);color:#fff}
 .status-bar{padding:5px 22px;background:var(--bg-2);border-top:1px solid var(--border);font-size:11px;color:var(--t3);font-family:var(--mono);flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-/* ═══ MODALS ═══ */
+/* MODALS */
 .modal-overlay{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center}
 .modal-overlay.open{display:flex}
 .modal{background:var(--bg-2);border:1px solid var(--border-h);border-radius:14px;padding:24px;width:380px;display:flex;flex-direction:column;gap:14px}
@@ -120,12 +120,11 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 .mbtn.confirm{background:var(--accent);border-color:var(--accent);color:#fff}.mbtn.confirm:hover{background:var(--accent-h)}
 .folder-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto}
 .folder-option{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;border:1px solid var(--border);transition:all .12s;color:var(--t2)}
-.folder-option:hover{background:var(--bg-3);border-color:var(--border-h);color:var(--t1)}
-.folder-option.selected{border-color:var(--accent);color:var(--accent);background:var(--accent-d)}
+.folder-option:hover{background:var(--bg-3);border-color:var(--border-h);color:var(--t1)}.folder-option.selected{border-color:var(--accent);color:var(--accent);background:var(--accent-d)}
 .folder-option-icon{font-size:14px;flex-shrink:0}.folder-option-name{flex:1;font-size:13px;font-weight:500}
 .folder-option-count{font-size:10px;font-family:var(--mono);color:var(--t3)}
 
-/* ═══ PLAYER ═══ */
+/* PLAYER */
 .player{width:258px;min-width:258px;background:var(--bg-2);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 .artwork{position:relative;height:205px;flex-shrink:0;overflow:hidden;background:#0d0d0d;display:flex;align-items:center;justify-content:center}
 .artwork-blur{position:absolute;inset:-30px;background-size:cover;background-position:center;filter:blur(28px) brightness(.55) saturate(2.2);opacity:0;transition:opacity .7s;pointer-events:none}
@@ -185,7 +184,7 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 <body>
 <div class="app">
 
-<!-- ═══ SIDEBAR ═══ -->
+<!-- SIDEBAR -->
 <nav class="sidebar">
   <div class="sidebar-logo">
     <svg class="logo-svg" viewBox="0 0 38 38">
@@ -203,49 +202,42 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
   <div class="nav-section">
     <div class="nav-label">Sélections</div>
     <div class="nav-item active" onclick="setSection(this,'En ce moment','trending')">
-      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><polyline points="1,11 4.5,7 7,9.5 10,5.5 15,8"/></svg>
-      En ce moment
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><polyline points="1,11 4.5,7 7,9.5 10,5.5 15,8"/></svg>En ce moment
     </div>
     <div class="nav-item" onclick="setSection(this,'Top stations','popular')">
-      <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.84 3.73 4.12.6-2.98 2.9.7 4.1L8 10.77 4.32 12.83l.7-4.1L2.04 5.83l4.12-.6z"/></svg>
-      Top stations
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5l1.84 3.73 4.12.6-2.98 2.9.7 4.1L8 10.77 4.32 12.83l.7-4.1L2.04 5.83l4.12-.6z"/></svg>Top stations
     </div>
     <div class="nav-item adfree" onclick="setSection(this,'Sans pub','adfree')">
-      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L2 4v4c0 3.5 2.5 6.5 6 7.5C12 14.5 14 11.5 14 8V4L8 1z"/></svg>
-      Sans pub
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1L2 4v4c0 3.5 2.5 6.5 6 7.5C12 14.5 14 11.5 14 8V4L8 1z"/></svg>Sans pub
     </div>
   </div>
 
-  <div class="nav-section" style="padding-top:4px">
+  <div class="nav-section">
     <div class="nav-label">Bibliothèque</div>
 
-    <!-- Favoris + bouton + Dossier sur la même ligne -->
-    <div class="nav-fav-header">
-      <div class="nav-fav-item" id="nav-favorites" onclick="setSection(document.getElementById('nav-favorites'),'Favoris','favorites')">
+    <!-- Favoris + bouton dossier -->
+    <div class="nav-fav-row">
+      <div class="nav-fav-btn" id="nav-fav-btn" onclick="setSection(document.getElementById('nav-fav-btn'),'Favoris','favorites')">
         <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>
-        Favoris
-        <span class="nav-badge" id="fav-badge">0</span>
+        Favoris<span class="nav-badge" id="fav-badge">0</span>
       </div>
-      <button class="nav-fav-add" onclick="openCreateFolderModal()" title="Nouveau dossier de favoris">＋</button>
+      <button class="nav-fav-add" onclick="openCreateFolderModal()" title="Nouveau dossier">＋</button>
     </div>
 
-    <!-- Sous-dossiers — drop targets -->
     <div class="nav-folders" id="nav-folders"></div>
 
     <div class="nav-item" onclick="setSection(this,'Mes stations','custom')">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><line x1="8" y1="5" x2="8" y2="11"/><line x1="5" y1="8" x2="11" y2="8"/></svg>
-      Mes stations
-      <span class="nav-badge" id="custom-badge">0</span>
+      Mes stations<span class="nav-badge" id="custom-badge">0</span>
     </div>
     <div class="nav-item danger" onclick="setSection(this,'Masquées','blacklisted')">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 2.5l-11 11"/><path d="M6.5 6.5A2.5 2.5 0 0 0 10.5 10M3 3.5C2 4.6 1.5 6 1.5 8s2 5.5 6.5 5.5c1.6 0 3-.4 4.1-1.1"/><path d="M5 1.9C6 1.6 7 1.5 8 1.5c4.5 0 6.5 3 6.5 6.5 0 1.1-.2 2.1-.6 3"/></svg>
-      Masquées
-      <span class="nav-badge" id="bl-badge">0</span>
+      Masquées<span class="nav-badge" id="bl-badge">0</span>
     </div>
   </div>
 </nav>
 
-<!-- ═══ MAIN ═══ -->
+<!-- MAIN -->
 <main class="main">
   <div class="main-header">
     <div class="main-title-row">
@@ -258,8 +250,7 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
         <input type="text" id="search-input" placeholder="Rechercher…" oninput="onSearchInput(this.value)" onkeydown="onSearchKey(event)">
       </div>
       <button class="btn-add" onclick="openAddModal()">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
-        Ajouter
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>Ajouter
       </button>
     </div>
   </div>
@@ -276,7 +267,7 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
   <div class="status-bar" id="status">Prêt.</div>
 </main>
 
-<!-- ═══ PLAYER ═══ -->
+<!-- PLAYER -->
 <aside class="player">
   <div class="artwork">
     <div class="artwork-blur" id="artwork-blur"></div>
@@ -327,14 +318,14 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
     </div>
   </div>
   <div class="controls">
-    <button class="ctrl sm" id="btn-fav" title="Favori" onclick="toggleFav()">
+    <button class="ctrl sm" id="btn-fav" title="Favori" onclick="toggleFavCurrent()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>
     </button>
     <button class="ctrl lg" id="btn-play" onclick="togglePlay()">
       <svg id="icon-play" width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.5l8 4.5-8 4.5V3.5z"/></svg>
       <svg id="icon-stop" width="18" height="18" viewBox="0 0 16 16" fill="currentColor" style="display:none"><rect x="4" y="4" width="8" height="8" rx="1"/></svg>
     </button>
-    <button class="ctrl sm" id="btn-bl" title="Masquer" onclick="toggleBlacklist()">
+    <button class="ctrl sm" id="btn-bl" title="Masquer" onclick="toggleBlacklistCurrent()">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 2.5l-11 11"/><path d="M6.5 6.5A2.5 2.5 0 0 0 10.5 10M3 3.5C2 4.6 1.5 6 1.5 8s2 5.5 6.5 5.5c1.6 0 3-.4 4.1-1.1"/><path d="M5 1.9C6 1.6 7 1.5 8 1.5c4.5 0 6.5 3 6.5 6.5 0 1.1-.2 2.1-.6 3"/></svg>
     </button>
   </div>
@@ -351,90 +342,59 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 </aside>
 </div>
 
-<!-- Modal ajouter station -->
+<!-- Modals -->
 <div class="modal-overlay" id="modal-add">
   <div class="modal">
     <div class="modal-title">Ajouter une station</div>
-    <div class="modal-field"><label class="modal-label">URL du flux *</label>
-      <input class="modal-input" id="add-url" type="url" placeholder="https://stream.example.com/radio.mp3"></div>
-    <div class="modal-field"><label class="modal-label">Nom</label>
-      <input class="modal-input" id="add-name" type="text" placeholder="Ma radio préférée"></div>
-    <div class="modal-field"><label class="modal-label">Pays</label>
-      <input class="modal-input" id="add-country" type="text" placeholder="France"></div>
-    <div class="modal-actions">
-      <button class="mbtn cancel" onclick="closeModal('modal-add')">Annuler</button>
-      <button class="mbtn confirm" onclick="confirmAddStation()">Ajouter</button>
-    </div>
+    <div class="modal-field"><label class="modal-label">URL du flux *</label><input class="modal-input" id="add-url" type="url" placeholder="https://stream.example.com/radio.mp3"></div>
+    <div class="modal-field"><label class="modal-label">Nom</label><input class="modal-input" id="add-name" type="text" placeholder="Ma radio préférée"></div>
+    <div class="modal-field"><label class="modal-label">Pays</label><input class="modal-input" id="add-country" type="text" placeholder="France"></div>
+    <div class="modal-actions"><button class="mbtn cancel" onclick="closeModal('modal-add')">Annuler</button><button class="mbtn confirm" onclick="confirmAddStation()">Ajouter</button></div>
   </div>
 </div>
-
-<!-- Modal créer dossier -->
 <div class="modal-overlay" id="modal-create-folder">
   <div class="modal">
     <div class="modal-title">Nouveau dossier</div>
-    <div class="modal-field"><label class="modal-label">Nom</label>
-      <input class="modal-input" id="folder-name-input" type="text" placeholder="Jazz, Workout, Nuit…"></div>
-    <div class="modal-actions">
-      <button class="mbtn cancel" onclick="closeModal('modal-create-folder')">Annuler</button>
-      <button class="mbtn confirm" onclick="confirmCreateFolder()">Créer</button>
-    </div>
+    <div class="modal-field"><label class="modal-label">Nom</label><input class="modal-input" id="folder-name-input" type="text" placeholder="Jazz, Workout, Nuit…"></div>
+    <div class="modal-actions"><button class="mbtn cancel" onclick="closeModal('modal-create-folder')">Annuler</button><button class="mbtn confirm" onclick="confirmCreateFolder()">Créer</button></div>
   </div>
 </div>
-
-<!-- Modal renommer dossier -->
 <div class="modal-overlay" id="modal-rename-folder">
   <div class="modal">
     <div class="modal-title">Renommer</div>
-    <div class="modal-field"><label class="modal-label">Nouveau nom</label>
-      <input class="modal-input" id="folder-rename-input" type="text"></div>
-    <div class="modal-actions">
-      <button class="mbtn cancel" onclick="closeModal('modal-rename-folder')">Annuler</button>
-      <button class="mbtn confirm" onclick="confirmRenameFolder()">Renommer</button>
-    </div>
+    <div class="modal-field"><label class="modal-label">Nouveau nom</label><input class="modal-input" id="folder-rename-input" type="text"></div>
+    <div class="modal-actions"><button class="mbtn cancel" onclick="closeModal('modal-rename-folder')">Annuler</button><button class="mbtn confirm" onclick="confirmRenameFolder()">Renommer</button></div>
   </div>
 </div>
-
-<!-- Modal choisir dossier pour favori -->
 <div class="modal-overlay" id="modal-folder-pick">
   <div class="modal">
     <div class="modal-title">Ajouter aux favoris</div>
     <div class="modal-sub" id="modal-folder-station-name"></div>
     <div class="folder-list" id="modal-folder-list"></div>
-    <div class="modal-actions">
-      <button class="mbtn cancel" onclick="closeModal('modal-folder-pick')">Annuler</button>
-      <button class="mbtn confirm" onclick="confirmFolderPick()">Ajouter</button>
-    </div>
+    <div class="modal-actions"><button class="mbtn cancel" onclick="closeModal('modal-folder-pick')">Annuler</button><button class="mbtn confirm" onclick="confirmFolderPick()">Ajouter</button></div>
   </div>
 </div>
 
 <script>
-// ── État ──
 let curStation=null,playing=false;
 let favTree={folders:[],unfiled:[]};
 let blacklist={},customStations={};
 let recentTracks=[],allStations=[],curSection='trending';
 let curHomepage='',searchTimeout=null;
 let _pendingFolderPick=null,_pendingRenameFolder=null;
-
-// Drag & drop — station en cours de déplacement
 let _dragStation=null,_dragFromFolder=null;
 
-const PALETTES=[
-  ['#1a1060','#4b0082'],['#0a2a1a','#0d5c2e'],['#2a0a0a','#7c1515'],['#0a1a2a','#0d3d6b'],
-  ['#1a0a2a','#5c0d7c'],['#2a1a00','#7c4800'],['#001a1a','#0d5555'],['#1a0a1a','#6b0d5c'],
-  ['#001a2a','#0d4060'],['#1a1a00','#4a4a00'],['#2a0a10','#800030'],['#001020','#004060'],
-];
+const PALETTES=[['#1a1060','#4b0082'],['#0a2a1a','#0d5c2e'],['#2a0a0a','#7c1515'],['#0a1a2a','#0d3d6b'],['#1a0a2a','#5c0d7c'],['#2a1a00','#7c4800'],['#001a1a','#0d5555'],['#1a0a1a','#6b0d5c'],['#001a2a','#0d4060'],['#1a1a00','#4a4a00'],['#2a0a10','#800030'],['#001020','#004060']];
 const eh=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 function nameHash(s){let h=0;for(let i=0;i<s.length;i++)h=(Math.imul(31,h)+s.charCodeAt(i))|0;return Math.abs(h)}
 function getPalette(n){return PALETTES[nameHash(n||'')%PALETTES.length]}
 function initials(n){return(n||'?').split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase()}
 function parseTrack(m){if(!m)return{artist:'',title:''};const i=m.indexOf(' - ');if(i>0&&i<m.length-3)return{artist:m.substring(0,i).trim(),title:m.substring(i+3).trim()};return{artist:'',title:m.trim()}}
 function isFavorite(sid){return favTree.unfiled.some(s=>s.id===sid)||favTree.folders.some(f=>f.stations.some(s=>s.id===sid))}
-function getFolderOfStation(sid){for(const f of favTree.folders)if(f.stations.some(s=>s.id===sid))return f.id;return null}
+function getFolderOf(sid){for(const f of favTree.folders)if(f.stations.some(s=>s.id===sid))return f.id;return null}
 
 const bridge={send(msg){try{window.webkit.messageHandlers.bbsradioo.postMessage(JSON.stringify(msg));}catch(e){console.log('[bridge]',JSON.stringify(msg));}}};
 
-// ── Python → JS ──
 window.onStationsLoaded=s=>showStations(s);
 window.onStatusChange=t=>{document.getElementById('status').textContent=t};
 window.onMetadata=t=>setTrack(t);
@@ -443,113 +403,78 @@ window.onStationChange=s=>{
   else{playing=false;setPlayIcon(false);document.getElementById('bars').classList.remove('on');}
 };
 window.onFavoritesTree=tree=>{
-  favTree=tree;
-  renderFoldersSidebar();
-  updateFavIcon();
+  favTree=tree;renderFoldersSidebar();updateFavIcon();updateAllCardFavBtns();
   const total=(tree.unfiled||[]).length+tree.folders.reduce((a,f)=>a+(f.stations||[]).length,0);
   document.getElementById('fav-badge').textContent=total||'0';
 };
 window.onBlacklistLoaded=bl=>{blacklist={};bl.forEach(s=>blacklist[s.id]=s);document.getElementById('bl-badge').textContent=bl.length||'0';updateBlIcon()};
 window.onCustomLoaded=c=>{customStations={};c.forEach(s=>customStations[s.id]=s);document.getElementById('custom-badge').textContent=c.length||'0'};
 
-// ── Sidebar dossiers (avec drop targets) ──
 function renderFoldersSidebar(){
   const container=document.getElementById('nav-folders');
-  const hasFolders=favTree.folders.length>0;
-  container.classList.toggle('visible',hasFolders);
-  if(!hasFolders){container.innerHTML='';return;}
+  const has=favTree.folders.length>0;
+  container.classList.toggle('visible',has);
+  if(!has){container.innerHTML='';return;}
   let html='';
   favTree.folders.forEach(f=>{
     const cnt=(f.stations||[]).length;
-    html+=`<div class="folder-item" data-id="${f.id}"
-      onclick="setFolderSection('${f.id}','${eh(f.name)}')"
-      ondragover="folderDragOver(event,'${f.id}')"
-      ondragleave="folderDragLeave(event)"
-      ondrop="folderDrop(event,'${f.id}')">
+    html+=`<div class="folder-item" data-id="${f.id}" onclick="setFolderSection('${f.id}','${eh(f.name)}')" ondragover="folderDragOver(event,'${f.id}')" ondragleave="folderDragLeave(event)" ondrop="folderDrop(event,'${f.id}')">
       <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor" style="opacity:.5;flex-shrink:0"><path d="M1 3a1 1 0 011-1h4l2 2h6a1 1 0 011 1v7a1 1 0 01-1 1H2a1 1 0 01-1-1V3z"/></svg>
-      <span class="folder-item-name">${eh(f.name)}</span>
-      <span class="folder-item-count">${cnt}</span>
+      <span class="folder-item-name">${eh(f.name)}</span><span class="folder-item-count">${cnt}</span>
       <span class="folder-actions">
-        <button class="fld-btn" title="Renommer" onclick="event.stopPropagation();openRenameFolderModal('${f.id}','${eh(f.name)}')">✏️</button>
-        <button class="fld-btn" title="Supprimer" onclick="event.stopPropagation();confirmDeleteFolder('${f.id}')">🗑️</button>
-      </span>
-    </div>`;
+        <button class="fld-btn" onclick="event.stopPropagation();openRenameFolderModal('${f.id}','${eh(f.name)}')">✏️</button>
+        <button class="fld-btn" onclick="event.stopPropagation();confirmDeleteFolder('${f.id}')">🗑️</button>
+      </span></div>`;
   });
-  if(favTree.unfiled&&favTree.unfiled.length){
-    html+=`<div class="folder-unfiled"
-      onclick="setUnfiledSection()"
-      ondragover="folderDragOver(event,'__unfiled__')"
-      ondragleave="folderDragLeave(event)"
-      ondrop="folderDrop(event,'__unfiled__')">
-      ⭐ Sans dossier (${favTree.unfiled.length})
-    </div>`;
-  }
+  if((favTree.unfiled||[]).length)
+    html+=`<div class="folder-unfiled" onclick="setUnfiledSection()" ondragover="folderDragOver(event,'__unfiled__')" ondragleave="folderDragLeave(event)" ondrop="folderDrop(event,'__unfiled__')">⭐ Sans dossier (${favTree.unfiled.length})</div>`;
   container.innerHTML=html;
 }
 
-// ── Drag & drop handlers ──
-function cardDragStart(e,stationId,fromFolderId){
-  _dragStation=stationId;
-  _dragFromFolder=fromFolderId;
-  e.dataTransfer.effectAllowed='move';
-  e.dataTransfer.setData('text/plain',stationId);
-  e.currentTarget.classList.add('dragging');
-}
+// Drag & drop
+function cardDragStart(e,sid,fromFid){_dragStation=sid;_dragFromFolder=fromFid;e.dataTransfer.effectAllowed='move';e.currentTarget.classList.add('dragging')}
 function cardDragEnd(e){e.currentTarget.classList.remove('dragging')}
-function folderDragOver(e,folderId){
-  e.preventDefault();e.stopPropagation();
-  e.dataTransfer.dropEffect='move';
-  document.querySelectorAll('.folder-item,.folder-unfiled').forEach(el=>el.classList.remove('drag-over'));
-  const target=folderId==='__unfiled__'
-    ?document.querySelector('.folder-unfiled')
-    :document.querySelector(`.folder-item[data-id="${folderId}"]`);
-  target?.classList.add('drag-over');
-}
-function folderDragLeave(e){
-  if(!e.currentTarget.contains(e.relatedTarget))
-    e.currentTarget.classList.remove('drag-over');
-}
-function folderDrop(e,folderId){
+function folderDragOver(e,fid){e.preventDefault();e.stopPropagation();document.querySelectorAll('.folder-item,.folder-unfiled').forEach(el=>el.classList.remove('drag-over'));(fid==='__unfiled__'?document.querySelector('.folder-unfiled'):document.querySelector(`.folder-item[data-id="${fid}"]`))?.classList.add('drag-over')}
+function folderDragLeave(e){if(!e.currentTarget.contains(e.relatedTarget))e.currentTarget.classList.remove('drag-over')}
+function folderDrop(e,fid){
   e.preventDefault();e.stopPropagation();
   document.querySelectorAll('.folder-item,.folder-unfiled').forEach(el=>el.classList.remove('drag-over'));
   if(!_dragStation)return;
-  const toFolder=folderId==='__unfiled__'?null:folderId;
-  const fromFolder=_dragFromFolder==='__unfiled__'?null:_dragFromFolder;
-  if(fromFolder===toFolder){_dragStation=null;_dragFromFolder=null;return;}
-  bridge.send({action:'move_station',station_id:_dragStation,from_folder_id:fromFolder,to_folder_id:toFolder});
+  const to=fid==='__unfiled__'?null:fid;
+  const from=_dragFromFolder==='__unfiled__'?null:_dragFromFolder;
+  if(from===to){_dragStation=null;_dragFromFolder=null;return;}
+  bridge.send({action:'move_station',station_id:_dragStation,from_folder_id:from,to_folder_id:to});
   _dragStation=null;_dragFromFolder=null;
 }
 
-// ── Navigation ──
+// Navigation
 function setSection(el,title,key){
-  document.querySelectorAll('.nav-item,.nav-fav-item,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.nav-fav-btn,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('section-title').textContent=title;
   document.getElementById('search-input').value='';
   curSection=key;
-  const cta=document.getElementById('empty-cta');
-  cta.style.display=(key==='favorites')?'block':'none';
+  document.getElementById('empty-cta').style.display=(key==='favorites')?'block':'none';
   if(key==='favorites'){showFavoritesGrouped();return;}
   if(key==='custom'){showStations(Object.values(customStations));return;}
   if(key==='blacklisted'){showStations(Object.values(blacklist));return;}
   showLoading();bridge.send({action:'load_section',section:key});
 }
 function setFolderSection(fid,name){
-  document.querySelectorAll('.nav-item,.nav-fav-item,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.nav-fav-btn,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
   document.querySelector(`.folder-item[data-id="${fid}"]`)?.classList.add('active');
   document.getElementById('section-title').textContent=`📁 ${name}`;
   document.getElementById('empty-cta').style.display='none';
-  const folder=favTree.folders.find(f=>f.id===fid);
-  showStationsInFolder(folder?folder.stations:[],fid);
+  const f=favTree.folders.find(f=>f.id===fid);
+  showFolderStations(f?f.stations:[],fid);
 }
 function setUnfiledSection(){
-  document.querySelectorAll('.nav-item,.nav-fav-item,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item,.nav-fav-btn,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
   document.querySelector('.folder-unfiled')?.classList.add('active');
   document.getElementById('section-title').textContent='Favoris — Sans dossier';
   document.getElementById('empty-cta').style.display='none';
-  showStationsInFolder(favTree.unfiled||[],null);
+  showFolderStations(favTree.unfiled||[],null);
 }
-
 function showFavoritesGrouped(){
   const groups=[];
   favTree.folders.forEach(f=>{if((f.stations||[]).length)groups.push({name:f.name,fid:f.id,stations:f.stations});});
@@ -559,7 +484,7 @@ function showFavoritesGrouped(){
   if(!allStations.length){
     document.getElementById('empty').style.display='flex';
     document.getElementById('empty-head').textContent='Aucun favori';
-    document.getElementById('empty-sub').textContent='Ajoutez des radios avec ☆, puis organisez-les en dossiers';
+    document.getElementById('empty-sub').textContent='Cliquez sur ☆ sur une carte pour ajouter, puis créez des dossiers';
     document.getElementById('empty-cta').style.display='block';
     document.getElementById('grid-container').innerHTML='';
     document.getElementById('station-count').textContent='';return;
@@ -575,8 +500,7 @@ function showFavoritesGrouped(){
     sec.appendChild(grid);container.appendChild(sec);
   });
 }
-
-function showStationsInFolder(list,folderId){
+function showFolderStations(list,fid){
   allStations=list;
   document.getElementById('loading').style.display='none';
   if(!list.length){document.getElementById('empty').style.display='flex';document.getElementById('grid-container').innerHTML='';document.getElementById('station-count').textContent='';return;}
@@ -584,31 +508,25 @@ function showStationsInFolder(list,folderId){
   document.getElementById('station-count').textContent=`${list.length} station${list.length>1?'s':''}`;
   const container=document.getElementById('grid-container');container.innerHTML='';
   const grid=document.createElement('div');grid.className='station-grid';
-  list.forEach(st=>grid.appendChild(makeCard(st,folderId)));
+  list.forEach(st=>grid.appendChild(makeCard(st,fid)));
   container.appendChild(grid);
 }
 
-// ── Recherche ──
+// Recherche
 function onSearchInput(val){
-  clearTimeout(searchTimeout);
-  if(!val.trim())return;
+  clearTimeout(searchTimeout);if(!val.trim())return;
   const q=val.toLowerCase();
   const filtered=allStations.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.description||'').toLowerCase().includes(q));
   if(filtered.length||allStations.length===0)renderGrid(filtered);
   searchTimeout=setTimeout(()=>{if(filtered.length<3&&val.trim().length>=2){showLoading();bridge.send({action:'search',query:val.trim()});}},600);
 }
 function onSearchKey(e){
-  if(e.key!=='Enter')return;
-  clearTimeout(searchTimeout);
+  if(e.key!=='Enter')return;clearTimeout(searchTimeout);
   const q=document.getElementById('search-input').value.trim();
-  if(q.length>=2){
-    document.getElementById('section-title').textContent=`🔍 ${q}`;
-    document.querySelectorAll('.nav-item,.nav-fav-item,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
-    showLoading();bridge.send({action:'search',query:q});
-  }
+  if(q.length>=2){document.getElementById('section-title').textContent=`🔍 ${q}`;document.querySelectorAll('.nav-item,.nav-fav-btn,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));showLoading();bridge.send({action:'search',query:q});}
 }
 
-// ── Affichage ──
+// Affichage
 function showLoading(){document.getElementById('loading').style.display='flex';document.getElementById('empty').style.display='none';document.getElementById('grid-container').innerHTML='';document.getElementById('station-count').textContent=''}
 function showStations(list){
   allStations=list;document.getElementById('loading').style.display='none';
@@ -621,21 +539,26 @@ function renderGrid(list){
   const grid=document.createElement('div');grid.className='station-grid';
   list.forEach(st=>grid.appendChild(makeCard(st)));container.appendChild(grid);
 }
+
 function makeCard(st,folderId=null){
   const init=initials(st.name);const isNow=curStation&&curStation.id===st.id&&playing;
+  const isFav=isFavorite(st.id);
   const[c1,c2]=getPalette(st.name);
   const logo=st.favicon
     ?`<img src="${st.favicon}" alt="${init}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="logo-gen" style="display:none;background:linear-gradient(135deg,${c1},${c2})">${init}</div>`
     :`<div class="logo-gen" style="background:linear-gradient(135deg,${c1},${c2})">${init}</div>`;
+  const starSvg=isFav
+    ?`<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`
+    :`<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`;
   const card=document.createElement('div');
   card.className='station-card'+(isNow?' playing':'');
   card.dataset.id=st.id;
-  // Drag & drop — seulement si la station est dans un dossier
-  const inFavs=isFavorite(st.id);
-  if(inFavs){
+  // Drag depuis les vues favoris
+  if(isFav){
     card.draggable=true;
-    const fromFid=folderId||getFolderOfStation(st.id)||'__unfiled__';
-    card.addEventListener('dragstart',e=>{e.stopPropagation();cardDragStart(e,st.id,fromFid);});
+    const fromFid=folderId!==undefined?folderId:getFolderOf(st.id);
+    const fromKey=fromFid===null?'__unfiled__':fromFid;
+    card.addEventListener('dragstart',e=>{e.stopPropagation();cardDragStart(e,st.id,fromKey);});
     card.addEventListener('dragend',e=>cardDragEnd(e));
   }
   card.innerHTML=`
@@ -645,15 +568,51 @@ function makeCard(st,folderId=null){
       <div class="station-desc">${st.description||''}</div>
       <span class="station-country">${st.country||''}</span>
     </div>
-    <button class="play-btn">${isNow
-      ?'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10" rx="1"/></svg>'
-      :'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>'}</button>`;
+    <div class="card-actions">
+      <button class="card-fav${isFav?' on':''}" title="${isFav?'Retirer des favoris':'Ajouter aux favoris'}" data-sid="${st.id}">${starSvg}</button>
+      <button class="play-btn">${isNow
+        ?'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10" rx="1"/></svg>'
+        :'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>'}</button>
+    </div>`;
+  // Bouton ⭐ sur la carte — fonctionne indépendamment du play
+  card.querySelector('.card-fav').addEventListener('click',e=>{e.stopPropagation();toggleFavStation(st);});
   card.querySelector('.play-btn').addEventListener('click',e=>{e.stopPropagation();doPlay(st);});
   card.addEventListener('click',()=>doPlay(st));
   return card;
 }
 
-// ── Playback ──
+function updateAllCardFavBtns(){
+  document.querySelectorAll('.card-fav[data-sid]').forEach(btn=>{
+    const sid=btn.dataset.sid;const on=isFavorite(sid);
+    btn.classList.toggle('on',on);
+    btn.title=on?'Retirer des favoris':'Ajouter aux favoris';
+    btn.innerHTML=on
+      ?`<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`
+      :`<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`;
+  });
+}
+
+// ─── Favori (depuis carte ou player panel) ───
+function toggleFavStation(st){
+  const sid=st.id;
+  if(isFavorite(sid)){
+    bridge.send({action:'remove_favorite',station_id:sid});
+    favTree.unfiled=favTree.unfiled.filter(s=>s.id!==sid);
+    favTree.folders.forEach(f=>f.stations=f.stations.filter(s=>s.id!==sid));
+    updateAllCardFavBtns();updateFavIcon();
+    return;
+  }
+  if(favTree.folders.length>0){
+    openFolderPickModal(st);
+  }else{
+    bridge.send({action:'add_to_folder',station:st,folder_id:null});
+    favTree.unfiled.push(st);
+    updateAllCardFavBtns();updateFavIcon();
+  }
+}
+function toggleFavCurrent(){if(curStation)toggleFavStation(curStation);}
+
+// ─── Playback ───
 function doPlay(st){
   if(blacklist[st.id]){document.getElementById('status').textContent=`${st.name} est masquée.`;return;}
   if(curStation&&curStation.id===st.id&&playing){doStop();return;}
@@ -662,58 +621,45 @@ function doPlay(st){
 function doStop(){bridge.send({action:'stop'});playing=false;setPlayIcon(false);document.getElementById('bars').classList.remove('on');clearTrack();highlightCard(null);}
 function togglePlay(){if(!curStation)return;if(playing)doStop();else{bridge.send({action:'play',station:curStation});playing=true;setPlayIcon(true);document.getElementById('bars').classList.add('on');}}
 
-// ── Favori ──
-function toggleFav(){
-  if(!curStation)return;const sid=curStation.id;
-  if(isFavorite(sid)){bridge.send({action:'remove_favorite',station_id:sid});favTree.unfiled=favTree.unfiled.filter(s=>s.id!==sid);favTree.folders.forEach(f=>f.stations=f.stations.filter(s=>s.id!==sid));updateFavIcon();return;}
-  if(favTree.folders.length>0){openFolderPickModal(curStation);}
-  else{bridge.send({action:'add_to_folder',station:curStation,folder_id:null});favTree.unfiled.push(curStation);updateFavIcon();}
-}
-
-// ── Blacklist ──
-function toggleBlacklist(){
+function toggleBlacklistCurrent(){
   if(!curStation)return;bridge.send({action:'toggle_blacklist',station:curStation});
   const id=curStation.id;if(blacklist[id])delete blacklist[id];else blacklist[id]=curStation;
   document.getElementById('bl-badge').textContent=Object.keys(blacklist).length||'0';updateBlIcon();
 }
+
 function setVol(v){v=parseInt(v);document.getElementById('vol-pct').textContent=v+'%';document.getElementById('vol').style.setProperty('--v',v+'%');bridge.send({action:'set_volume',volume:v});}
 function openHomepage(){if(curHomepage)window.open(curHomepage,'_blank');}
 
-// ── Modals ──
+// Modals
 function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-overlay').forEach(m=>{m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});});
-
 function openAddModal(){['add-url','add-name','add-country'].forEach(id=>document.getElementById(id).value='');openModal('modal-add');setTimeout(()=>document.getElementById('add-url').focus(),100);}
 function confirmAddStation(){const url=document.getElementById('add-url').value.trim();if(!url)return;bridge.send({action:'add_custom',stream_url:url,name:document.getElementById('add-name').value.trim(),country:document.getElementById('add-country').value.trim()});closeModal('modal-add');}
-
 function openCreateFolderModal(){document.getElementById('folder-name-input').value='';openModal('modal-create-folder');setTimeout(()=>document.getElementById('folder-name-input').focus(),100);}
 function confirmCreateFolder(){const name=document.getElementById('folder-name-input').value.trim();if(!name)return;bridge.send({action:'create_folder',name});closeModal('modal-create-folder');}
-
 function openRenameFolderModal(fid,name){_pendingRenameFolder=fid;document.getElementById('folder-rename-input').value=name;openModal('modal-rename-folder');setTimeout(()=>document.getElementById('folder-rename-input').focus(),100);}
 function confirmRenameFolder(){const name=document.getElementById('folder-rename-input').value.trim();if(!name||!_pendingRenameFolder)return;bridge.send({action:'rename_folder',folder_id:_pendingRenameFolder,name});_pendingRenameFolder=null;closeModal('modal-rename-folder');}
-
 function confirmDeleteFolder(fid){if(confirm('Supprimer ce dossier ?\nLes stations seront conservées dans "Sans dossier".'))bridge.send({action:'delete_folder',folder_id:fid,keep_stations:true});}
-
-function openFolderPickModal(station){
-  _pendingFolderPick={station,selectedFolderId:undefined};
-  document.getElementById('modal-folder-station-name').textContent=station.name||'';
-  let html=`<div class="folder-option" data-id="__unfiled__" onclick="selectFolderOpt(this,'__unfiled__')"><span class="folder-option-icon">⭐</span><span class="folder-option-name">Sans dossier</span></div>`;
+function openFolderPickModal(st){
+  _pendingFolderPick={st,selectedFolderId:undefined};
+  document.getElementById('modal-folder-station-name').textContent=st.name||'';
+  let html=`<div class="folder-option" onclick="selectFolderOpt(this,null)"><span class="folder-option-icon">⭐</span><span class="folder-option-name">Sans dossier</span></div>`;
   favTree.folders.forEach(f=>{html+=`<div class="folder-option" data-id="${f.id}" onclick="selectFolderOpt(this,'${f.id}')"><span class="folder-option-icon">📁</span><span class="folder-option-name">${eh(f.name)}</span><span class="folder-option-count">${(f.stations||[]).length}</span></div>`;});
   document.getElementById('modal-folder-list').innerHTML=html;openModal('modal-folder-pick');
 }
-function selectFolderOpt(el,fid){document.querySelectorAll('#modal-folder-list .folder-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');_pendingFolderPick.selectedFolderId=fid==='__unfiled__'?null:fid;}
+function selectFolderOpt(el,fid){document.querySelectorAll('#modal-folder-list .folder-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');_pendingFolderPick.selectedFolderId=fid;}
 function confirmFolderPick(){
   if(!_pendingFolderPick)return;
-  if(_pendingFolderPick.selectedFolderId===undefined)_pendingFolderPick.selectedFolderId=null;
-  const{station,selectedFolderId}=_pendingFolderPick;
-  bridge.send({action:'add_to_folder',station,folder_id:selectedFolderId});
-  if(selectedFolderId===null)favTree.unfiled.push(station);
-  else{const f=favTree.folders.find(f=>f.id===selectedFolderId);if(f)f.stations.push(station);}
-  updateFavIcon();renderFoldersSidebar();closeModal('modal-folder-pick');_pendingFolderPick=null;
+  const{st,selectedFolderId}=_pendingFolderPick;
+  const fid=selectedFolderId===undefined?null:selectedFolderId;
+  bridge.send({action:'add_to_folder',station:st,folder_id:fid});
+  if(fid===null)favTree.unfiled.push(st);
+  else{const f=favTree.folders.find(f=>f.id===fid);if(f)f.stations.push(st);}
+  updateAllCardFavBtns();updateFavIcon();renderFoldersSidebar();closeModal('modal-folder-pick');_pendingFolderPick=null;
 }
 
-// ── Player panel ──
+// Player
 function renderPlayer(st){
   const ne=document.getElementById('player-name');ne.textContent=st.name||'';ne.classList.remove('idle');
   const bd=document.getElementById('player-badges');bd.innerHTML='';
@@ -754,18 +700,12 @@ function setTrack(meta){
   else{document.getElementById('player-now-playing').classList.remove('visible');document.getElementById('player-track-only').textContent=meta;document.getElementById('player-track-only').style.display='block';}
   document.getElementById('bars').classList.add('on');addRecent(artist,title||meta);
 }
-function tagSearch(tag){
-  document.getElementById('section-title').textContent=`🏷️ ${tag}`;
-  document.querySelectorAll('.nav-item,.nav-fav-item,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));
-  showLoading();bridge.send({action:'search',tag});
-}
+function tagSearch(tag){document.getElementById('section-title').textContent=`🏷️ ${tag}`;document.querySelectorAll('.nav-item,.nav-fav-btn,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));showLoading();bridge.send({action:'search',tag});}
 function setPlayIcon(on){document.getElementById('icon-play').style.display=on?'none':'block';document.getElementById('icon-stop').style.display=on?'block':'none';}
 function updateFavIcon(){
   const btn=document.getElementById('btn-fav');const on=curStation&&isFavorite(curStation.id);
   btn.classList.toggle('gold',on);btn.title=on?'Retirer des favoris':'Ajouter aux favoris';
-  btn.innerHTML=on
-    ?'<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>'
-    :'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>';
+  btn.innerHTML=on?`<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`:`<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`;
 }
 function updateBlIcon(){const btn=document.getElementById('btn-bl');const on=curStation&&!!blacklist[curStation.id];btn.classList.toggle('red-active',on);btn.title=on?'Retirer des masquées':'Masquer cette station';}
 function highlightCard(id){document.querySelectorAll('.station-card').forEach(c=>{const a=c.dataset.id===id;c.classList.toggle('playing',a);const b=c.querySelector('.play-btn');if(b)b.innerHTML=a?'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect width="10" height="10" rx="1"/></svg>':'<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M2 1.5l7 3.5-7 3.5z"/></svg>';});}
@@ -773,10 +713,7 @@ function addRecent(artist,title){
   const t=new Date().toLocaleTimeString('fr',{hour:'2-digit',minute:'2-digit'});
   recentTracks=[{artist,title,time:t},...recentTracks.filter(r=>r.title!==title)].slice(0,8);
   document.getElementById('recent-panel').style.display='block';
-  document.getElementById('recent-list').innerHTML=recentTracks.map((r,i)=>`
-    <div class="track-item"><span class="track-num">${i+1}</span>
-    <div class="track-info">${r.artist?`<div class="track-artist">${r.artist}</div>`:''}<div class="track-title-r">${r.title}</div></div>
-    <span class="track-time">${r.time}</span></div>`).join('');
+  document.getElementById('recent-list').innerHTML=recentTracks.map((r,i)=>`<div class="track-item"><span class="track-num">${i+1}</span><div class="track-info">${r.artist?`<div class="track-artist">${r.artist}</div>`:''}<div class="track-title-r">${r.title}</div></div><span class="track-time">${r.time}</span></div>`).join('');
 }
 document.addEventListener('DOMContentLoaded',()=>showLoading());
 </script>

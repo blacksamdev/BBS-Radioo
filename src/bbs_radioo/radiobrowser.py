@@ -64,22 +64,28 @@ def _parse_results(raw: list) -> list[dict]:
 
 
 # ─────────────────────────────
-# Sections principales
-# Endpoints dédiés — évite /stations/search sans critère (retourne vide)
+# Sections
+# Utilise /stations avec order= — version éprouvée qui retourne toujours des résultats.
 # ─────────────────────────────
 
 def get_trending(limit: int = 80) -> list[dict]:
-    """/stations/topclick : stations les plus cliquées récemment."""
-    return _parse_results(
-        _get(f"/stations/topclick/{limit}", {"hidebroken": "true"})
-    )
+    """Stations les plus cliquées récemment."""
+    return _parse_results(_get("/stations", {
+        "hidebroken": "true",
+        "order":      "clickcount",
+        "reverse":    "true",
+        "limit":      str(limit),
+    }))
 
 
 def get_popular(limit: int = 80) -> list[dict]:
-    """/stations/topvote : stations les plus votées."""
-    return _parse_results(
-        _get(f"/stations/topvote/{limit}", {"hidebroken": "true"})
-    )
+    """Stations les plus votées."""
+    return _parse_results(_get("/stations", {
+        "hidebroken": "true",
+        "order":      "votes",
+        "reverse":    "true",
+        "limit":      str(limit),
+    }))
 
 
 # ─────────────────────────────
@@ -99,18 +105,13 @@ def search_by_name(query: str, limit: int = 40) -> list[dict]:
 
 
 def search_by_tag(tag: str, limit: int = 60) -> list[dict]:
-    """
-    /stations/bytag/{tag} — endpoint dédié aux tags.
-    Plus fiable que /stations/search?tagList=
-    """
+    """Endpoint dédié /stations/bytag/ — fiable pour les tags."""
     if not tag.strip():
         return []
     encoded = urllib.parse.quote(tag.strip().lower())
-    return _parse_results(
-        _get(f"/stations/bytag/{encoded}", {
-            "hidebroken": "true",
-            "order":      "votes",
-            "reverse":    "true",
-            "limit":      str(limit),
-        })
-    )
+    return _parse_results(_get(f"/stations/bytag/{encoded}", {
+        "hidebroken": "true",
+        "order":      "votes",
+        "reverse":    "true",
+        "limit":      str(limit),
+    }))

@@ -25,6 +25,25 @@ def _run_host(args: list, **kwargs) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, **kwargs)
 
 
+def _is_valid_title(title: str) -> bool:
+    """
+    Filtre les métadonnées invalides que certains streams envoient :
+    - URL ou chemin de flux  ('ouuku85n3nje?origine=fluxradios')
+    - Nombre pur             ('9999999', '128000')
+    - Trop court             ('<' 3 chars)
+    """
+    if not title or len(title.strip()) < 3:
+        return False
+    t = title.strip()
+    # URL ou query string
+    if any(c in t for c in ('/', '?', '://')):
+        return False
+    # Nombre pur
+    if re.match(r'^\d+$', t):
+        return False
+    return True
+
+
 class RadioPlayer:
 
     def __init__(self):
@@ -37,8 +56,8 @@ class RadioPlayer:
         self._volume = 100
         self._user_stopped = False
 
-        self.on_status_change  = None
-        self.on_station_change = None
+        self.on_status_change   = None
+        self.on_station_change  = None
         self.on_metadata_change = None
 
     # ─────────────────────────────
@@ -131,10 +150,8 @@ class RadioPlayer:
                 media_name  = props.get("media.name", "")
                 is_mpv = (
                     "Stream/Output/Audio" in media_class and (
-                        "BBS radiOO" in node_name or
-                        "BBS radiOO" in media_name or
-                        "mpv" in node_name.lower() or
-                        "mpv" in app_name.lower()
+                        "BBS radiOO" in node_name or "BBS radiOO" in media_name or
+                        "mpv" in node_name.lower() or "mpv" in app_name.lower()
                     )
                 )
                 if not is_mpv:
@@ -144,7 +161,9 @@ class RadioPlayer:
                 for src in [node_name, media_name]:
                     m = re.search(r'BBS radiOO\s*-\s*(.+)', src)
                     if m:
-                        title = m.group(1).strip()
+                        candidate = m.group(1).strip()
+                        if _is_valid_title(candidate):
+                            title = candidate
                         break
                 return node_id, title
         except Exception as e:
@@ -163,7 +182,12 @@ class RadioPlayer:
                         continue
                     sid = id_m.group(1)
                     title_m = re.search(r'BBS radiOO\s*-\s*(.+?)(?:\s*[\[|]|$)', line)
-                    return sid, title_m.group(1).strip() if title_m else None
+                    if title_m:
+                        candidate = title_m.group(1).strip()
+                        title = candidate if _is_valid_title(candidate) else None
+                    else:
+                        title = None
+                    return sid, title
         except Exception as e:
             log_event(f"wpctl: {e}", level="debug")
         return None, None
@@ -182,34 +206,17 @@ class RadioPlayer:
             return False
 
     # ─────────────────────────────
-    # Metadata + infos stream
+    # Metadata
     # ─────────────────────────────
 
     def _get_track(self) -> str | None:
         _, title = self._find_stream_pw()
         if title:
             return title
-        return self._ipc_get_property("media-title")
-
-    def _probe_stream_info(self) -> dict:
-        """
-        Interroge MPV via IPC pour récupérer bitrate et codec du flux en cours.
-        Utile pour les stations custom ajoutées manuellement.
-        """
-        info = {}
-        try:
-            bitrate = self._ipc_get_property("audio-bitrate")
-            if bitrate:
-                try:
-                    info["bitrate"] = int(float(bitrate) / 1000)
-                except ValueError:
-                    pass
-            codec = self._ipc_get_property("audio-codec-name")
-            if codec:
-                info["codec"] = codec.strip().lower()
-        except Exception:
-            pass
-        return info
+        raw = self._ipc_get_property("media-title")
+        if raw and _is_valid_title(raw):
+            return raw
+        return None
 
     def _ipc_get_property(self, prop: str) -> str | None:
         script = (
@@ -230,10 +237,25 @@ class RadioPlayer:
         except Exception:
             return None
 
+    def _probe_stream_info(self) -> dict:
+        info = {}
+        try:
+            bitrate = self._ipc_get_property("audio-bitrate")
+            if bitrate:
+                try:
+                    info["bitrate"] = max(1, int(float(bitrate) / 1000))
+                except ValueError:
+                    pass
+            codec = self._ipc_get_property("audio-codec-name")
+            if codec and codec.strip():
+                info["codec"] = codec.strip().lower()
+        except Exception:
+            pass
+        return info
+
     def _poll_metadata(self, station_id: str):
         self._polling = True
         last_title = ""
-        # Pour les stations custom, tenter de récupérer bitrate/codec après 3s
         probed = False
         probe_at = time.monotonic() + 3.0
 
@@ -244,7 +266,7 @@ class RadioPlayer:
             ):
                 break
 
-            # Probe stream info une seule fois pour stations custom
+            # Probe stream info pour stations custom
             if not probed and time.monotonic() >= probe_at:
                 probed = True
                 if self._current_station and self._current_station.get("source") == "custom":
@@ -254,7 +276,6 @@ class RadioPlayer:
                         self._current_station = updated
                         if self.on_station_change:
                             GLib.idle_add(self.on_station_change, updated)
-                        log_event(f"Stream info probed: {info}", level="debug")
 
             title = self._get_track() or ""
             if title and title != last_title:
@@ -393,7 +414,7 @@ class RadioPlayer:
                         GLib.idle_add(self.on_metadata_change, "")
                     return
 
-            # Coupure réseau → reconnexion
+            # Reconnexion automatique
             if attempt < _RECONNECT_MAX:
                 log_event(f"Stream perdu — reconnexion dans {_RECONNECT_DELAY}s")
                 self._status(f"Connexion perdue. Reconnexion dans {int(_RECONNECT_DELAY)}s…")
