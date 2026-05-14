@@ -16,7 +16,8 @@ def _get(path: str, params: dict = None) -> list:
             url += "?" + urllib.parse.urlencode(params)
         req = urllib.request.Request(url, headers=_HEADERS)
         with urllib.request.urlopen(req, timeout=10) as resp:
-            return json.loads(resp.read().decode())
+            data = json.loads(resp.read().decode())
+            return data if isinstance(data, list) else []
     except Exception:
         return []
 
@@ -63,54 +64,39 @@ def _parse_results(raw: list) -> list[dict]:
 
 
 # ─────────────────────────────
-# API publique
+# Sections trending / popular
+# Utilise /stations/search qui supporte order, reverse, limit, hidebroken.
+# /stations tout seul ne filtre pas correctement.
+# ─────────────────────────────
+
+def get_stations_for_section(params: dict) -> list[dict]:
+    return _parse_results(_get("/stations/search", params))
+
+
+# ─────────────────────────────
+# Recherche
 # ─────────────────────────────
 
 def search_by_name(query: str, limit: int = 40) -> list[dict]:
-    """Recherche de stations par nom."""
     if not query.strip():
         return []
     return _parse_results(_get("/stations/search", {
-        "name":        query.strip(),
-        "hidebroken":  "true",
-        "order":       "votes",
-        "reverse":     "true",
-        "limit":       str(limit),
+        "name":       query.strip(),
+        "hidebroken": "true",
+        "order":      "votes",
+        "reverse":    "true",
+        "limit":      str(limit),
     }))
 
 
 def search_by_tag(tag: str, limit: int = 60) -> list[dict]:
-    """
-    Recherche de stations par tag (genre musical).
-    Utilise /stations/search avec tagList pour une correspondance exacte.
-    """
+    """Recherche par genre/tag — utilise tagList pour correspondance exacte."""
     if not tag.strip():
         return []
     return _parse_results(_get("/stations/search", {
-        "tagList":     tag.strip().lower(),
-        "hidebroken":  "true",
-        "order":       "votes",
-        "reverse":     "true",
-        "limit":       str(limit),
+        "tagList":    tag.strip().lower(),
+        "hidebroken": "true",
+        "order":      "votes",
+        "reverse":    "true",
+        "limit":      str(limit),
     }))
-
-
-def search_by_country(country: str, limit: int = 60) -> list[dict]:
-    """
-    Recherche de stations par pays.
-    Utilise /stations/search?country= (plus flexible que /bycountry/).
-    """
-    if not country.strip():
-        return []
-    return _parse_results(_get("/stations/search", {
-        "country":     country.strip(),
-        "hidebroken":  "true",
-        "order":       "votes",
-        "reverse":     "true",
-        "limit":       str(limit),
-    }))
-
-
-def get_stations_for_section(params: dict) -> list[dict]:
-    """Stations pour les sections trending/popular."""
-    return _parse_results(_get("/stations", params))

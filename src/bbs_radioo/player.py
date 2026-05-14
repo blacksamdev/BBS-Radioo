@@ -16,8 +16,8 @@ _MPV_IPC_SOCKET = os.path.join(
 )
 
 _METADATA_POLL_INTERVAL = 4.0
-_RECONNECT_DELAY        = 5.0   # secondes avant de retenter
-_RECONNECT_MAX          = 3     # tentatives maximum
+_RECONNECT_DELAY        = 5.0
+_RECONNECT_MAX          = 3
 
 
 def _run_host(args: list, **kwargs) -> subprocess.CompletedProcess:
@@ -35,9 +35,9 @@ class RadioPlayer:
         self._current_station: dict | None = None
         self._polling = False
         self._volume = 100
-        self._user_stopped = False  # True si l'utilisateur a stoppé explicitement
+        self._user_stopped = False
 
-        self.on_status_change = None
+        self.on_status_change  = None
         self.on_station_change = None
         self.on_metadata_change = None
 
@@ -52,7 +52,6 @@ class RadioPlayer:
             self._stop_current()
             self._is_playing = True
             self._current_station = station
-
         self._status(f"Connexion à {station.get('name', '')}...")
         log_event(f"Play: {station.get('name')} — {station.get('stream_url')}")
         threading.Thread(target=self._launch, args=(station, 0), daemon=True).start()
@@ -107,7 +106,7 @@ class RadioPlayer:
         self._remove_socket()
 
     # ─────────────────────────────
-    # PipeWire — volume + metadata
+    # PipeWire — volume
     # ─────────────────────────────
 
     def _find_stream_pw(self) -> tuple[str | None, str | None]:
@@ -121,20 +120,16 @@ class RadioPlayer:
             r = _run_host(["pw-dump"], capture_output=True, text=True, timeout=6)
             if not r.stdout.strip():
                 return None, None
-
             nodes = json.loads(r.stdout)
             for node in nodes:
                 if "Node" not in node.get("type", ""):
                     continue
-                info  = node.get("info", {})
-                props = info.get("props", {})
-
+                props       = node.get("info", {}).get("props", {})
                 node_name   = props.get("node.name", "")
                 media_class = props.get("media.class", "")
                 app_name    = props.get("application.name", "")
                 media_name  = props.get("media.name", "")
-
-                is_mpv_stream = (
+                is_mpv = (
                     "Stream/Output/Audio" in media_class and (
                         "BBS radiOO" in node_name or
                         "BBS radiOO" in media_name or
@@ -142,36 +137,24 @@ class RadioPlayer:
                         "mpv" in app_name.lower()
                     )
                 )
-                if not is_mpv_stream:
+                if not is_mpv:
                     continue
-
                 node_id = str(node.get("id", ""))
                 title = None
-                for source in [node_name, media_name]:
-                    m = re.search(r'BBS radiOO\s*-\s*(.+)', source)
+                for src in [node_name, media_name]:
+                    m = re.search(r'BBS radiOO\s*-\s*(.+)', src)
                     if m:
                         title = m.group(1).strip()
                         break
-
-                log_event(
-                    f"pw-dump: node #{node_id} class={media_class} title='{title}'",
-                    level="debug"
-                )
                 return node_id, title
-
-        except json.JSONDecodeError as e:
-            log_event(f"pw-dump JSON: {e}", level="debug")
         except Exception as e:
             log_event(f"pw-dump: {e}", level="debug")
-
         return None, None
 
     def _find_stream_wpctl(self) -> tuple[str | None, str | None]:
         try:
             r = _run_host(["wpctl", "status"], capture_output=True, text=True, timeout=5)
-            output = r.stdout
-
-            for line in output.split("\n"):
+            for line in r.stdout.split("\n"):
                 if "BBS radiOO" in line or (
                     re.search(r"mpv", line, re.IGNORECASE) and "vol:" in line
                 ):
@@ -180,12 +163,9 @@ class RadioPlayer:
                         continue
                     sid = id_m.group(1)
                     title_m = re.search(r'BBS radiOO\s*-\s*(.+?)(?:\s*[\[|]|$)', line)
-                    title = title_m.group(1).strip() if title_m else None
-                    return sid, title
-
+                    return sid, title_m.group(1).strip() if title_m else None
         except Exception as e:
             log_event(f"wpctl: {e}", level="debug")
-
         return None, None
 
     def _set_volume_pw(self, volume: int) -> bool:
@@ -193,10 +173,8 @@ class RadioPlayer:
         if not node_id:
             return False
         try:
-            _run_host(
-                ["wpctl", "set-volume", node_id, f"{volume}%"],
-                capture_output=True, timeout=3
-            )
+            _run_host(["wpctl", "set-volume", node_id, f"{volume}%"],
+                      capture_output=True, timeout=3)
             log_event(f"wpctl set-volume #{node_id} → {volume}%", level="debug")
             return True
         except Exception as e:
@@ -204,31 +182,49 @@ class RadioPlayer:
             return False
 
     # ─────────────────────────────
-    # Metadata
+    # Metadata + infos stream
     # ─────────────────────────────
 
     def _get_track(self) -> str | None:
         _, title = self._find_stream_pw()
         if title:
             return title
-        return self._get_track_from_ipc()
+        return self._ipc_get_property("media-title")
 
-    def _get_track_from_ipc(self) -> str | None:
+    def _probe_stream_info(self) -> dict:
+        """
+        Interroge MPV via IPC pour récupérer bitrate et codec du flux en cours.
+        Utile pour les stations custom ajoutées manuellement.
+        """
+        info = {}
+        try:
+            bitrate = self._ipc_get_property("audio-bitrate")
+            if bitrate:
+                try:
+                    info["bitrate"] = int(float(bitrate) / 1000)
+                except ValueError:
+                    pass
+            codec = self._ipc_get_property("audio-codec-name")
+            if codec:
+                info["codec"] = codec.strip().lower()
+        except Exception:
+            pass
+        return info
+
+    def _ipc_get_property(self, prop: str) -> str | None:
         script = (
             "import socket,json;"
             "s=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);"
             "s.settimeout(1);"
             f"s.connect('{_MPV_IPC_SOCKET}');"
-            "s.sendall(json.dumps({'command':['get_property','media-title']}).encode()+b'\\n');"
+            f"s.sendall(json.dumps({{'command':['get_property','{prop}']}}).encode()+b'\\n');"
             "d=s.recv(4096);s.close();"
             "r=json.loads(d.split(b'\\n')[0]);"
             "print(r.get('data','') if r.get('error')=='success' else '',end='')"
         )
         try:
-            r = _run_host(
-                ["python3", "-c", script],
-                capture_output=True, text=True, timeout=3
-            )
+            r = _run_host(["python3", "-c", script],
+                          capture_output=True, text=True, timeout=3)
             v = r.stdout.strip()
             return v if v else None
         except Exception:
@@ -237,12 +233,29 @@ class RadioPlayer:
     def _poll_metadata(self, station_id: str):
         self._polling = True
         last_title = ""
+        # Pour les stations custom, tenter de récupérer bitrate/codec après 3s
+        probed = False
+        probe_at = time.monotonic() + 3.0
+
         while self._polling and self._is_playing:
             if (
                 self._current_station is None or
                 self._current_station.get("id") != station_id
             ):
                 break
+
+            # Probe stream info une seule fois pour stations custom
+            if not probed and time.monotonic() >= probe_at:
+                probed = True
+                if self._current_station and self._current_station.get("source") == "custom":
+                    info = self._probe_stream_info()
+                    if info and self._current_station:
+                        updated = {**self._current_station, **info}
+                        self._current_station = updated
+                        if self.on_station_change:
+                            GLib.idle_add(self.on_station_change, updated)
+                        log_event(f"Stream info probed: {info}", level="debug")
+
             title = self._get_track() or ""
             if title and title != last_title:
                 last_title = title
@@ -311,15 +324,10 @@ class RadioPlayer:
             pass
 
     def _launch(self, station: dict, attempt: int):
-        """
-        Lance MPV pour la station donnée.
-        En cas de coupure réseau (stream terminé sans user_stopped),
-        retente jusqu'à _RECONNECT_MAX fois avec un délai.
-        """
         station_id = station.get("id", "")
         try:
             if attempt > 0:
-                log_event(f"Reconnexion {attempt}/{_RECONNECT_MAX} pour {station.get('name')}…")
+                log_event(f"Reconnexion {attempt}/{_RECONNECT_MAX} — {station.get('name')}")
                 self._status(f"Reconnexion… ({attempt}/{_RECONNECT_MAX})")
 
             proc = Updater.play_stream(
@@ -335,7 +343,6 @@ class RadioPlayer:
             socket_found = False
             while time.monotonic() < deadline:
                 if self._current_station and self._current_station.get("id") != station_id:
-                    log_event(f"_launch: abandon {station.get('name')}", level="debug")
                     return
                 if proc.poll() is not None:
                     self._status("Impossible de se connecter au stream.")
@@ -371,18 +378,13 @@ class RadioPlayer:
             with self._lock:
                 if proc in self._all_processes:
                     self._all_processes.remove(proc)
-
-                # Coupure réseau ou fin inattendue ?
-                is_our_station = (
+                is_ours = (
                     self._current_station and
                     self._current_station.get("id") == station_id
                 )
-                if not is_our_station:
-                    log_event("_launch end: station changée", level="debug")
+                if not is_ours:
                     return
-
                 if self._user_stopped:
-                    # Arrêt volontaire
                     self._is_playing = False
                     self._status("Arrêté.")
                     if self.on_station_change:
@@ -391,17 +393,11 @@ class RadioPlayer:
                         GLib.idle_add(self.on_metadata_change, "")
                     return
 
-            # ── Coupure réseau détectée — tentative de reconnexion ──
+            # Coupure réseau → reconnexion
             if attempt < _RECONNECT_MAX:
-                log_event(
-                    f"Stream interrompu pour {station.get('name')} — "
-                    f"reconnexion dans {_RECONNECT_DELAY}s "
-                    f"(tentative {attempt + 1}/{_RECONNECT_MAX})"
-                )
+                log_event(f"Stream perdu — reconnexion dans {_RECONNECT_DELAY}s")
                 self._status(f"Connexion perdue. Reconnexion dans {int(_RECONNECT_DELAY)}s…")
                 time.sleep(_RECONNECT_DELAY)
-
-                # Vérifier que l'utilisateur n'a pas changé de station entre-temps
                 if (
                     not self._user_stopped and
                     self._current_station and
@@ -409,8 +405,7 @@ class RadioPlayer:
                 ):
                     self._launch(station, attempt + 1)
             else:
-                log_event(f"Abandon reconnexion pour {station.get('name')} après {_RECONNECT_MAX} tentatives.")
-                self._status("Stream terminé — reconnexion échouée.")
+                self._status("Stream terminé.")
                 with self._lock:
                     self._is_playing = False
                 if self.on_station_change:
@@ -421,7 +416,6 @@ class RadioPlayer:
         except Exception as exc:
             log_event(f"Player error: {exc}")
             self._status("Erreur de lecture.")
-            self._polling = False
             with self._lock:
                 if self._current_station and self._current_station.get("id") == station_id:
                     self._is_playing = False
