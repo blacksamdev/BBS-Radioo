@@ -1,25 +1,44 @@
-"""Source radio-browser.info — API REST publique."""
+"""Source radio-browser.info — API REST publique.
+
+Utilise plusieurs serveurs en cascade : si de1 est down,
+on essaie nl1, at1, etc. automatiquement.
+"""
 
 import json
 import urllib.request
 import urllib.parse
 
+from bbs_radioo.logging_utils import log_event
 
-_API_BASE = "https://de1.api.radio-browser.info/json"
-_HEADERS  = {"User-Agent": "BBS-radiOO/1.0"}
+
+# Serveurs RadioBrowser publics — essayés dans l'ordre
+_API_SERVERS = [
+    "https://de1.api.radio-browser.info/json",
+    "https://nl1.api.radio-browser.info/json",
+    "https://at1.api.radio-browser.info/json",
+    "https://fi1.api.radio-browser.info/json",
+]
+_HEADERS = {"User-Agent": "BBS-radiOO/1.0"}
 
 
 def _get(path: str, params: dict = None) -> list:
-    try:
-        url = f"{_API_BASE}{path}"
-        if params:
-            url += "?" + urllib.parse.urlencode(params)
-        req = urllib.request.Request(url, headers=_HEADERS)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-            return data if isinstance(data, list) else []
-    except Exception:
-        return []
+    """Essaie chaque serveur jusqu'à obtenir une réponse non vide."""
+    qs = ("?" + urllib.parse.urlencode(params)) if params else ""
+    for base in _API_SERVERS:
+        url = f"{base}{path}{qs}"
+        try:
+            req = urllib.request.Request(url, headers=_HEADERS)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                data = json.loads(resp.read().decode())
+                if isinstance(data, list) and len(data) > 0:
+                    log_event(f"RadioBrowser OK: {base} — {len(data)} résultats", level="debug")
+                    return data
+                # Liste vide → tenter le serveur suivant
+                log_event(f"RadioBrowser vide: {base}{path}", level="debug")
+        except Exception as e:
+            log_event(f"RadioBrowser erreur {base}: {e}", level="debug")
+    log_event(f"RadioBrowser: tous les serveurs ont échoué pour {path}", level="debug")
+    return []
 
 
 def _parse_bitrate(value) -> int:
@@ -65,11 +84,10 @@ def _parse_results(raw: list) -> list[dict]:
 
 # ─────────────────────────────
 # Sections
-# Utilise /stations avec order= — version éprouvée qui retourne toujours des résultats.
 # ─────────────────────────────
 
 def get_trending(limit: int = 80) -> list[dict]:
-    """Stations les plus cliquées récemment."""
+    """Stations les plus cliquées."""
     return _parse_results(_get("/stations", {
         "hidebroken": "true",
         "order":      "clickcount",
@@ -105,7 +123,7 @@ def search_by_name(query: str, limit: int = 40) -> list[dict]:
 
 
 def search_by_tag(tag: str, limit: int = 60) -> list[dict]:
-    """Endpoint dédié /stations/bytag/ — fiable pour les tags."""
+    """Endpoint dédié /stations/bytag/."""
     if not tag.strip():
         return []
     encoded = urllib.parse.quote(tag.strip().lower())
