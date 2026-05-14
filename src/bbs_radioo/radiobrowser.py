@@ -64,13 +64,22 @@ def _parse_results(raw: list) -> list[dict]:
 
 
 # ─────────────────────────────
-# Sections trending / popular
-# Utilise /stations/search qui supporte order, reverse, limit, hidebroken.
-# /stations tout seul ne filtre pas correctement.
+# Sections principales
+# Endpoints dédiés — évite /stations/search sans critère (retourne vide)
 # ─────────────────────────────
 
-def get_stations_for_section(params: dict) -> list[dict]:
-    return _parse_results(_get("/stations/search", params))
+def get_trending(limit: int = 80) -> list[dict]:
+    """/stations/topclick : stations les plus cliquées récemment."""
+    return _parse_results(
+        _get(f"/stations/topclick/{limit}", {"hidebroken": "true"})
+    )
+
+
+def get_popular(limit: int = 80) -> list[dict]:
+    """/stations/topvote : stations les plus votées."""
+    return _parse_results(
+        _get(f"/stations/topvote/{limit}", {"hidebroken": "true"})
+    )
 
 
 # ─────────────────────────────
@@ -90,13 +99,18 @@ def search_by_name(query: str, limit: int = 40) -> list[dict]:
 
 
 def search_by_tag(tag: str, limit: int = 60) -> list[dict]:
-    """Recherche par genre/tag — utilise tagList pour correspondance exacte."""
+    """
+    /stations/bytag/{tag} — endpoint dédié aux tags.
+    Plus fiable que /stations/search?tagList=
+    """
     if not tag.strip():
         return []
-    return _parse_results(_get("/stations/search", {
-        "tagList":    tag.strip().lower(),
-        "hidebroken": "true",
-        "order":      "votes",
-        "reverse":    "true",
-        "limit":      str(limit),
-    }))
+    encoded = urllib.parse.quote(tag.strip().lower())
+    return _parse_results(
+        _get(f"/stations/bytag/{encoded}", {
+            "hidebroken": "true",
+            "order":      "votes",
+            "reverse":    "true",
+            "limit":      str(limit),
+        })
+    )
