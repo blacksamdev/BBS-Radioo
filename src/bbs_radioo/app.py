@@ -255,10 +255,14 @@ class RadiooApp(Gtk.Application):
 
         if section == "trending":
             try:
-                stations = radiobrowser.get_trending()
+                raw = radiobrowser._get("/stations", {
+                    "hidebroken": "true",
+                    "order":      "clickcount",
+                    "reverse":    "true",
+                    "limit":      "80",
+                })
+                stations = radiobrowser._parse_results(raw)
                 log_event(f"Trending: {len(stations)} stations")
-                if not stations:
-                    log_event("Trending vide — vérifiez les logs RadioBrowser debug")
             except Exception as exc:
                 log_event(f"Erreur trending: {exc}")
                 stations = []
@@ -267,10 +271,14 @@ class RadiooApp(Gtk.Application):
 
         if section == "popular":
             try:
-                stations = radiobrowser.get_popular()
+                raw = radiobrowser._get("/stations", {
+                    "hidebroken": "true",
+                    "order":      "votes",
+                    "reverse":    "true",
+                    "limit":      "80",
+                })
+                stations = radiobrowser._parse_results(raw)
                 log_event(f"Popular: {len(stations)} stations")
-                if not stations:
-                    log_event("Popular vide — vérifiez les logs RadioBrowser debug")
             except Exception as exc:
                 log_event(f"Erreur popular: {exc}")
                 stations = []
