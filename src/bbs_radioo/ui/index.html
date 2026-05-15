@@ -693,12 +693,32 @@ function _showGenerated(st){
 }
 function onArtworkError(){if(curStation)_showGenerated(curStation);}
 function clearTrack(){document.getElementById('player-now-playing').classList.remove('visible');document.getElementById('player-artist').textContent='';document.getElementById('player-track').textContent='';document.getElementById('player-track-only').style.display='none';}
+// Retourne true si la chaîne est un titre réel (pas un nombre pur ou de l'info de flux)
+function isJunkMeta(s){
+  if(!s)return true;
+  const t=s.trim();
+  if(t.length<2)return true;
+  // Nombre pur : "971755", "971755 - 971755", "971 755"
+  if(/^[\d\s.\-]+$/.test(t))return true;
+  // Toutes les parties num: "971755 - 971755"
+  const parts=t.split(' - ').map(p=>p.trim()).filter(Boolean);
+  if(parts.length>0&&parts.every(p=>/^[\d\s.]+$/.test(p)))return true;
+  return false;
+}
+
 function setTrack(meta){
   if(!meta){clearTrack();return;}
   const{artist,title}=parseTrack(meta);
+  // Bruit numérique : effacer l'affichage sans l'historiser
+  if(isJunkMeta(title)&&isJunkMeta(artist)){
+    clearTrack();
+    document.getElementById('bars').classList.add('on');
+    return;
+  }
   if(artist&&title){document.getElementById('player-artist').textContent=artist;document.getElementById('player-track').textContent=title;document.getElementById('player-now-playing').classList.add('visible');document.getElementById('player-track-only').style.display='none';}
   else{document.getElementById('player-now-playing').classList.remove('visible');document.getElementById('player-track-only').textContent=meta;document.getElementById('player-track-only').style.display='block';}
-  document.getElementById('bars').classList.add('on');addRecent(artist,title||meta);
+  document.getElementById('bars').classList.add('on');
+  addRecent(artist,title||meta);
 }
 function tagSearch(tag){document.getElementById('section-title').textContent=`🏷️ ${tag}`;document.querySelectorAll('.nav-item,.nav-fav-btn,.folder-item,.folder-unfiled').forEach(n=>n.classList.remove('active'));showLoading();bridge.send({action:'search',tag});}
 function setPlayIcon(on){document.getElementById('icon-play').style.display=on?'none':'block';document.getElementById('icon-stop').style.display=on?'block':'none';}
