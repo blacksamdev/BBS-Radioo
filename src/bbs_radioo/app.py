@@ -257,6 +257,8 @@ class RadiooApp(Gtk.Application):
             try:
                 stations = radiobrowser.get_trending()
                 log_event(f"Trending: {len(stations)} stations")
+                if not stations:
+                    log_event("Trending vide — vérifiez les logs RadioBrowser debug")
             except Exception as exc:
                 log_event(f"Erreur trending: {exc}")
                 stations = []
@@ -267,6 +269,8 @@ class RadiooApp(Gtk.Application):
             try:
                 stations = radiobrowser.get_popular()
                 log_event(f"Popular: {len(stations)} stations")
+                if not stations:
+                    log_event("Popular vide — vérifiez les logs RadioBrowser debug")
             except Exception as exc:
                 log_event(f"Erreur popular: {exc}")
                 stations = []

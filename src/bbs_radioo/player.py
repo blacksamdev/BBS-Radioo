@@ -27,27 +27,15 @@ def _run_host(args: list, **kwargs) -> subprocess.CompletedProcess:
 
 def _is_valid_title(title: str) -> bool:
     """
-    Filtre les métadonnées invalides que certains streams envoient :
-    - URL / query string     ('ouuku85n3nje?origine=fluxradios')
-    - Nombre pur             ('9999999', '128000')
-    - Décimal                ('971.755')
-    - Nombres avec espaces   ('971 755')
-    - Toutes parties nombres ('971755 - 971755')  ← cas Chérie FM
-    - Trop court             (< 3 chars)
+    Filtre uniquement les métadonnées clairement inutilisables :
+    - Trop court (< 2 chars)
+    - URL ou query string ('ouuku85n3nje?origine=fluxradios', 'http://...')
+    Les titres numériques ('971755') sont transmis au JS qui gère leur affichage.
     """
-    if not title or len(title.strip()) < 3:
+    if not title or len(title.strip()) < 2:
         return False
     t = title.strip()
-    # URL ou query string
     if any(c in t for c in ('/', '?', '://')):
-        return False
-    # Nombre pur (avec ou sans espaces/points)
-    if re.match(r'^[\d\s.]+$', t):
-        return False
-    # Toutes les parties séparées par " - " sont des nombres
-    # ex: "971755 - 971755" → invalide
-    parts = [p.strip() for p in t.split(' - ') if p.strip()]
-    if parts and all(re.match(r'^[\d\s.]+$', p) for p in parts):
         return False
     return True
 
