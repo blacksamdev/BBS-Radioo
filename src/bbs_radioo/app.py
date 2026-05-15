@@ -248,6 +248,38 @@ class RadiooApp(Gtk.Application):
             return
         self.player.play(station)
 
+    def _parse_rb(self, raw: list) -> list[dict]:
+        """Parse brut RadioBrowser — n'utilise que _station_to_dict, présent dans toutes les versions."""
+        seen, results = set(), []
+        for s in raw:
+            uid = s.get("stationuuid", "")
+            if uid in seen:
+                continue
+            seen.add(uid)
+            try:
+                d = radiobrowser._station_to_dict(s)
+            except AttributeError:
+                # Fallback si _station_to_dict absent — construction manuelle minimale
+                url = s.get("url_resolved") or s.get("url", "")
+                if not url:
+                    continue
+                d = {
+                    "id":          f"rb-{s.get('stationuuid','')}",
+                    "name":        s.get("name","").strip(),
+                    "stream_url":  url,
+                    "favicon":     s.get("favicon",""),
+                    "homepage":    s.get("homepage",""),
+                    "description": s.get("tags",""),
+                    "tags":        [t.strip() for t in s.get("tags","").split(",") if t.strip()],
+                    "bitrate":     0,
+                    "codec":       s.get("codec","").lower(),
+                    "country":     s.get("country",""),
+                    "source":      "radiobrowser",
+                }
+            if d:
+                results.append(d)
+        return results
+
     def _filter(self, stations: list[dict]) -> list[dict]:
         return self.blacklist.filter(stations)
 
@@ -261,7 +293,7 @@ class RadiooApp(Gtk.Application):
                     "reverse":    "true",
                     "limit":      "80",
                 })
-                stations = radiobrowser._parse_results(raw)
+                stations = self._parse_rb(raw)
                 log_event(f"Trending: {len(stations)} stations")
             except Exception as exc:
                 log_event(f"Erreur trending: {exc}")
@@ -277,7 +309,7 @@ class RadiooApp(Gtk.Application):
                     "reverse":    "true",
                     "limit":      "80",
                 })
-                stations = radiobrowser._parse_results(raw)
+                stations = self._parse_rb(raw)
                 log_event(f"Popular: {len(stations)} stations")
             except Exception as exc:
                 log_event(f"Erreur popular: {exc}")
