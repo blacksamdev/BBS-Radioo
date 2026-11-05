@@ -60,6 +60,11 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 
 /* MAIN */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.chips{display:none;gap:8px;padding:10px 22px 0;flex-shrink:0}
+.chips.on{display:flex}
+.chip{background:var(--bg-2);border:1px solid var(--border);color:var(--text-2,#9aa);border-radius:14px;padding:4px 12px;font-size:12px;cursor:pointer;user-select:none}
+.chip:hover{border-color:var(--green)}
+.chip.active{background:rgba(34,197,94,.12);border-color:var(--green);color:var(--green)}
 .main-header{padding:14px 22px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
 .main-title-row{display:flex;flex-direction:column}
 .main-title{font-size:18px;font-weight:800;color:var(--t1)}
@@ -201,6 +206,9 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 
   <div class="nav-section">
     <div class="nav-label">Sélections</div>
+    <div class="nav-item" onclick="setSection(this,'Toutes les radios','all')">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="2"/><path d="M4.5 4.5a5 5 0 000 7M11.5 4.5a5 5 0 010 7M2.2 2.4a8 8 0 000 11.2M13.8 2.4a8 8 0 010 11.2"/></svg>Toutes les radios
+    </div>
     <div class="nav-item active" onclick="setSection(this,'En ce moment','trending')">
       <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><polyline points="1,11 4.5,7 7,9.5 10,5.5 15,8"/></svg>En ce moment
     </div>
@@ -253,6 +261,11 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>Ajouter
       </button>
     </div>
+  </div>
+  <div class="chips" id="chips">
+    <span class="chip active" data-f="all" onclick="setAdFilter('all')">Toutes</span>
+    <span class="chip" data-f="adfree" onclick="setAdFilter('adfree')">Sans pub</span>
+    <span class="chip" data-f="other" onclick="setAdFilter('other')">Autres</span>
   </div>
   <div class="main-content">
     <div class="loading-state" id="loading" style="display:none"><div class="spinner"></div><span>Chargement...</span></div>
@@ -379,7 +392,7 @@ html,body{height:100%;background:var(--bg);color:var(--t1);font-family:var(--fon
 let curStation=null,playing=false;
 let favTree={folders:[],unfiled:[]};
 let blacklist={},customStations={};
-let recentTracks=[],allStations=[],curSection='trending';
+let recentTracks=[],allStations=[],curSection='trending',adFilter='all';
 let curHomepage='',searchTimeout=null;
 let _pendingFolderPick=null,_pendingRenameFolder=null;
 let _dragStation=null,_dragFromFolder=null;
@@ -454,6 +467,7 @@ function setSection(el,title,key){
   document.getElementById('section-title').textContent=title;
   document.getElementById('search-input').value='';
   curSection=key;
+  updateChips();
   document.getElementById('empty-cta').style.display=(key==='favorites')?'block':'none';
   if(key==='favorites'){showFavoritesGrouped();return;}
   if(key==='custom'){showStations(Object.values(customStations));return;}
@@ -533,7 +547,22 @@ function showStations(list){
   if(!list.length){document.getElementById('empty').style.display='flex';document.getElementById('empty-head').textContent='Aucune station';document.getElementById('empty-sub').textContent='';document.getElementById('grid-container').innerHTML='';document.getElementById('station-count').textContent='';return;}
   document.getElementById('empty').style.display='none';renderGrid(list);
 }
+const AD_SOURCES=['somafm','curated'];
+function isAdfree(s){return AD_SOURCES.includes(s.source)}
+function updateChips(){
+  const on=curSection==='all';
+  document.getElementById('chips').classList.toggle('on',on);
+  if(!on)adFilter='all';
+  document.querySelectorAll('#chips .chip').forEach(c=>c.classList.toggle('active',c.dataset.f===adFilter));
+}
+function setAdFilter(f){
+  adFilter=f;updateChips();
+  const q=document.getElementById('search-input').value.trim().toLowerCase();
+  const base=q?allStations.filter(s=>(s.name||'').toLowerCase().includes(q)||(s.description||'').toLowerCase().includes(q)):allStations;
+  renderGrid(base);
+}
 function renderGrid(list){
+  if(curSection==='all'&&adFilter!=='all')list=list.filter(s=>adFilter==='adfree'?isAdfree(s):!isAdfree(s));
   document.getElementById('station-count').textContent=`${list.length} station${list.length>1?'s':''}`;
   const container=document.getElementById('grid-container');container.innerHTML='';
   const grid=document.createElement('div');grid.className='station-grid';
@@ -545,7 +574,7 @@ function makeCard(st,folderId=null){
   const isFav=isFavorite(st.id);
   const[c1,c2]=getPalette(st.name);
   const logo=st.favicon
-    ?`<img src="${st.favicon}" alt="${init}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="logo-gen" style="display:none;background:linear-gradient(135deg,${c1},${c2})">${init}</div>`
+    ?`<img src="${st.favicon}" alt="${init}" loading="lazy" decoding="async" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="logo-gen" style="display:none;background:linear-gradient(135deg,${c1},${c2})">${init}</div>`
     :`<div class="logo-gen" style="background:linear-gradient(135deg,${c1},${c2})">${init}</div>`;
   const starSvg=isFav
     ?`<svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12.5L3.5 15l.95-5.3L.9 5.9l5.3-.77L8 .5l1.8 4.63 5.3.77-3.55 3.8.95 5.3z"/></svg>`
@@ -709,8 +738,9 @@ function isJunkMeta(s){
 function setTrack(meta){
   if(!meta){clearTrack();return;}
   const{artist,title}=parseTrack(meta);
-  // Ne pas afficher ni historiser du bruit numérique
+  // Bruit numérique : effacer l'affichage sans l'historiser
   if(isJunkMeta(title)&&isJunkMeta(artist)){
+    clearTrack();
     document.getElementById('bars').classList.add('on');
     return;
   }

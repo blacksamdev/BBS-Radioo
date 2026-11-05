@@ -64,6 +64,7 @@ class RadiooApp(Gtk.Application):
         self.store      = StationStore()
         self.blacklist  = BlacklistStore()
         self.custom     = CustomStore()
+        self._adfree_cache = None
         self._window_created = False
         self._shutting_down  = False
 
@@ -283,6 +284,64 @@ class RadiooApp(Gtk.Application):
     def _filter(self, stations: list[dict]) -> list[dict]:
         return self.blacklist.filter(stations)
 
+    def _adfree_list(self) -> list[dict]:
+        """Curated + SomaFM (sans pub), mis en cache pour la session."""
+        if self._adfree_cache is not None:
+            return self._adfree_cache
+        results = []
+        try:
+            results = list(curated.get_stations_for_themes([]))
+        except Exception as exc:
+            log_event(f"Erreur curated: {exc}")
+        seen = {s["id"] for s in results}
+        try:
+            for s in somafm.get_stations_for_themes([], THEME_BY_ID):
+                if s["id"] not in seen:
+                    seen.add(s["id"])
+                    results.append(s)
+        except Exception as exc:
+            log_event(f"Erreur somafm: {exc}")
+        if results:
+            self._adfree_cache = results
+        return results
+
+    def _rb_list(self, order: str, limit: int = 300) -> list[dict]:
+        try:
+            raw = radiobrowser._get("/stations", {
+                "hidebroken": "true",
+                "order":      order,
+                "reverse":    "true",
+                "limit":      str(limit),
+            })
+            return self._parse_rb(raw)
+        except Exception as exc:
+            log_event(f"Erreur RadioBrowser ({order}): {exc}")
+            return []
+
+    @staticmethod
+    def _merge(*lists) -> list[dict]:
+        """Fusionne en dédoublonnant par id puis par URL de flux."""
+        seen_ids, seen_urls, out = set(), set(), []
+        for lst in lists:
+            for s in lst or []:
+                sid = s.get("id", "")
+                url = (s.get("stream_url") or "").strip().lower().rstrip("/")
+                if not url or sid in seen_ids or url in seen_urls:
+                    continue
+                seen_ids.add(sid)
+                seen_urls.add(url)
+                out.append(s)
+        return out
+
+    def _all_stations(self) -> list[dict]:
+        adfree = self._adfree_list()
+        votes  = self._rb_list("votes")
+        clicks = self._rb_list("clickcount")
+        merged = self._merge(adfree, self.custom.all(), votes, clicks)
+        log_event(f"Toutes les radios: {len(merged)} stations "
+                  f"(sans pub {len(adfree)}, votes {len(votes)}, clics {len(clicks)})")
+        return merged
+
     def _fetch_section(self, section: str):
 
         if section == "trending":
@@ -318,21 +377,13 @@ class RadiooApp(Gtk.Application):
             return
 
         if section == "adfree":
-            results = []
-            try:
-                results = curated.get_stations_for_themes([])
-            except Exception as exc:
-                log_event(f"Erreur curated: {exc}")
-            seen = {s["id"] for s in results}
-            try:
-                for s in somafm.get_stations_for_themes([], THEME_BY_ID):
-                    if s["id"] not in seen:
-                        seen.add(s["id"])
-                        results.append(s)
-                log_event(f"Adfree: {len(results)} stations")
-            except Exception as exc:
-                log_event(f"Erreur somafm: {exc}")
+            results = self._adfree_list()
+            log_event(f"Adfree: {len(results)} stations")
             GLib.idle_add(self._push_stations, self._filter(results))
+            return
+
+        if section == "all":
+            GLib.idle_add(self._push_stations, self._filter(self._all_stations()))
             return
 
         if section == "custom":
@@ -344,12 +395,19 @@ class RadiooApp(Gtk.Application):
             return
 
     def _fetch_search(self, query: str):
+        q = query.lower()
+        local = [
+            s for s in (self._adfree_list() + self.custom.all())
+            if q in (s.get("name", "") or "").lower()
+            or any(q in (t or "").lower() for t in s.get("tags", []))
+        ]
         try:
-            results = radiobrowser.search_by_name(query)
-            log_event(f"Search '{query}': {len(results)} résultats")
+            remote = radiobrowser.search_by_name(query)
         except Exception as exc:
             log_event(f"Erreur search: {exc}")
-            results = []
+            remote = []
+        results = self._merge(local, remote)
+        log_event(f"Search '{query}': {len(results)} résultats ({len(local)} locaux)")
         GLib.idle_add(self._push_stations, self._filter(results))
 
     def _fetch_tag(self, tag: str):
